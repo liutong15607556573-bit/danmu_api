@@ -130,3 +130,23 @@ test('offsetDuration 按偏移端点换算时长', () => {
     assert.strictEqual(offsetDuration(0, 100), 0, '时长未知时保持原值');
     assert.strictEqual(offsetDuration(100, -200), 0, '负向偏移钳制到 0');
   });
+
+test('applyOffset 大量弹幕百分比偏移保持数量、顺序与时间轴端点', () => {
+  const count = 25000;
+  const danmus = Array.from({ length: count }, (_, index) => ({
+    p: `${(index / 10).toFixed(2)},1,16777215,b`,
+    m: `弹幕${index}`
+  }));
+  const maxTime = danmus.reduce((max, danmu) => {
+    const time = parseFloat(danmu.p.split(',')[0]) || 0;
+    return time > max ? time : max;
+  }, 0);
+  const offset = 50;
+  const shifted = applyOffset(danmus, offset, { usePercent: true, videoDuration: maxTime });
+
+  assert.strictEqual(shifted.length, count, '偏移后弹幕数量不变');
+  assert.strictEqual(shifted[0].m, '弹幕0', '首条弹幕顺序不变');
+  assert.strictEqual(shifted[count - 1].m, `弹幕${count - 1}`, '末条弹幕顺序不变');
+  assert.strictEqual(parseFloat(shifted[count - 1].p.split(',')[0]), Number((maxTime + offset).toFixed(2)), '时间轴末端增加指定偏移');
+  assert.strictEqual(danmus[count - 1].p, `${maxTime.toFixed(2)},1,16777215,b`, '原始弹幕数组不被修改');
+});
