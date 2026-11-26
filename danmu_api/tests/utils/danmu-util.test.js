@@ -228,7 +228,12 @@ test('convertToDanmakuJson XML 输入惰性解析且兼容空 XML', () => {
   const xml = '<i><d p="1,1,25,16777215,0,0,0,1">第一条</d><d p="2.5,1,25,16777215,0,0,0,2">第二条</d></i>';
   const out = convertToDanmakuJson(xml, 'test');
 
-  assert.deepStrictEqual(out.map(d => d.m), ['第一条', '第二条']);
-  assert.deepStrictEqual(out.map(d => d.t), [1, 2.5]);
+  assert.deepStrictEqual(
+    out.map(d => ({ p: d.p, m: d.m, cid: d.cid, t: d.t })),
+    [
+      { p: '1.00,1,16777215,[test]', m: '第一条', cid: 1, t: 1 },
+      { p: '2.50,1,16777215,[test]', m: '第二条', cid: 2, t: 2.5 }
+    ]
+  );
   assert.deepStrictEqual(convertToDanmakuJson('<i></i>', 'test'), []);
 });
