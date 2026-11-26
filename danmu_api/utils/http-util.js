@@ -3,6 +3,8 @@ import { log } from './log-util.js'
 import { AsyncLocalStorage } from 'node:async_hooks';
 import https from 'node:https';
 import http from 'node:http';
+import { Readable } from 'node:stream';
+import { createGzip } from 'node:zlib';
 
 // 跨异步生命周期链路的日志上下文追踪器
 export const sourceLogContext = new AsyncLocalStorage();
@@ -597,9 +599,7 @@ export async function getPageTitle(url) {
 // EdgeOne Node Functions limits each response body to 6 MB. Compress JSON/text responses
 // when the client explicitly accepts gzip so large danmaku payloads stay below that limit.
 export function compressResponseForEdgeOne(response, request, deployPlatform) {
-  if (deployPlatform !== 'edgeone' || !response?.body || typeof CompressionStream === 'undefined') {
-    return response;
-  }
+  if (deployPlatform !== 'edgeone' || !response?.body) return response;
 
   const acceptEncoding = request?.headers?.get?.('accept-encoding') || '';
   const acceptsGzip = acceptEncoding.split(',').some((entry) => {
@@ -623,7 +623,20 @@ export function compressResponseForEdgeOne(response, request, deployPlatform) {
       headers.set('vary', `${vary}, Accept-Encoding`);
     }
 
-    return new Response(response.body.pipeThrough(new CompressionStream('gzip')), {
+    // Prefer the Web Streams API. On Node runtimes without CompressionStream,
+    // fall back to the native zlib stream rather than returning an oversized
+    // uncompressed JSON response that can be truncated by EdgeOne's body limit.
+    let compressedBody;
+    if (typeof CompressionStream !== 'undefined') {
+      compressedBody = response.body.pipeThrough(new CompressionStream('gzip'));
+    } else if (typeof process !== 'undefined' && process.versions?.node) {
+      const nodeBody = Readable.fromWeb(response.body).pipe(createGzip());
+      compressedBody = Readable.toWeb(nodeBody);
+    } else {
+      return response;
+    }
+
+    return new Response(compressedBody, {
       status: response.status,
       statusText: response.statusText,
       headers,
