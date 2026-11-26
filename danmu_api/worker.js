@@ -3,6 +3,7 @@ import { jsonResponse, compressResponseForEdgeOne } from './utils/http-util.js';
 import { log, formatLogMessage } from './utils/log-util.js'
 import { getFavoriteCachesFromRedis, judgeRedisValid, initializePersistentCaches, updateRedisCaches } from "./utils/redis-util.js";
 import { cleanupExpiredIPs, findUrlById, getCommentCache, judgeLocalCacheValid, updateLocalCaches } from "./utils/cache-util.js";
+import { updateLocalRedisCaches } from "./utils/local-redis-util.js";
 import { formatDanmuResponse } from "./utils/danmu-util.js";
 import AIClient from './utils/ai-util.js';
 import { getBangumi, getComment, getCommentByUrl, getSegmentComment, matchAnime, searchAnime, searchEpisodes } from "./apis/dandan-api.js";
@@ -839,10 +840,7 @@ async function persistRequestSnapshot() {
   const backends = [
     ['file', globals.localCacheValid, () => updateLocalCaches(REQUEST_RECORD_PERSIST_KEYS)],
     ['upstash', globals.redisValid, () => updateRedisCaches(REQUEST_RECORD_PERSIST_KEYS)],
-    ['localRedis', globals.localRedisValid, async () => {
-      const module = await import('./utils/local-redis-util.js');
-      return module.updateLocalRedisCaches(REQUEST_RECORD_PERSIST_KEYS);
-    }],
+    ['localRedis', globals.localRedisValid, () => updateLocalRedisCaches(REQUEST_RECORD_PERSIST_KEYS)],
   ];
   for (const [backend, enabled, persist] of backends) {
     if (!enabled) continue;
