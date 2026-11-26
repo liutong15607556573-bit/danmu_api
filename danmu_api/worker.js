@@ -1,8 +1,8 @@
 import { Globals } from './configs/globals.js';
 import { jsonResponse, compressResponseForEdgeOne } from './utils/http-util.js';
 import { log, formatLogMessage } from './utils/log-util.js'
-import { getFavoriteCachesFromRedis, judgeRedisValid, initializePersistentCaches } from "./utils/redis-util.js";
-import { cleanupExpiredIPs, findUrlById, getCommentCache, judgeLocalCacheValid } from "./utils/cache-util.js";
+import { getFavoriteCachesFromRedis, judgeRedisValid, initializePersistentCaches, updateRedisCaches } from "./utils/redis-util.js";
+import { cleanupExpiredIPs, findUrlById, getCommentCache, judgeLocalCacheValid, updateLocalCaches } from "./utils/cache-util.js";
 import { formatDanmuResponse } from "./utils/danmu-util.js";
 import AIClient from './utils/ai-util.js';
 import { getBangumi, getComment, getCommentByUrl, getSegmentComment, matchAnime, searchAnime, searchEpisodes } from "./apis/dandan-api.js";
@@ -833,16 +833,21 @@ let tracePersistPromise = null;
 let tracePersistRequested = false;
 
 async function persistRequestSnapshot() {
+  // cache-util and redis-util are already part of the worker's static dependency
+  // graph. Importing them again by a relative path breaks on EdgeOne's packaged
+  // Node entrypoint, where this file is bundled as /var/user/index.mjs.
   const backends = [
-    ['file', globals.localCacheValid, './utils/cache-util.js', 'updateLocalCaches'],
-    ['upstash', globals.redisValid, './utils/redis-util.js', 'updateRedisCaches'],
-    ['localRedis', globals.localRedisValid, './utils/local-redis-util.js', 'updateLocalRedisCaches'],
+    ['file', globals.localCacheValid, () => updateLocalCaches(REQUEST_RECORD_PERSIST_KEYS)],
+    ['upstash', globals.redisValid, () => updateRedisCaches(REQUEST_RECORD_PERSIST_KEYS)],
+    ['localRedis', globals.localRedisValid, async () => {
+      const module = await import('./utils/local-redis-util.js');
+      return module.updateLocalRedisCaches(REQUEST_RECORD_PERSIST_KEYS);
+    }],
   ];
-  for (const [backend, enabled, modulePath, method] of backends) {
+  for (const [backend, enabled, persist] of backends) {
     if (!enabled) continue;
     try {
-      const module = await import(modulePath);
-      const result = await module[method](REQUEST_RECORD_PERSIST_KEYS);
+      const result = await persist();
       if (result === false) log('warn', `[system] [trace] ${backend} 详情落盘未执行`);
     } catch (error) {
       log('warn', `[system] [trace] ${backend} 详情落盘失败: ${error.message}`);
