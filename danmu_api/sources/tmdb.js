@@ -104,7 +104,7 @@ export default class TmdbSource extends BaseSource {
       }
 
       const candidates = [...resultMap.values()];
-      const requestedYear = String(keyword).match(/[（(]?((?:19|20)\d{2})[)）]?\\s*$/)?.[1] || "";
+      const requestedYear = String(keyword).match(/[（(]?((?:19|20)\d{2})[)）]?\s*$/)?.[1] || "";
       const yearMatches = item => {
         if (!requestedYear) return true;
         const date = item.release_date || item.first_air_date || "";
