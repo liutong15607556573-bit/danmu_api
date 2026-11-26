@@ -459,9 +459,9 @@ function confirmDeploySystem() {
                     .then(response => response.json())
                     .then(result => {
                         if (result.success) {
-                            addLog('云端部署触发成功', 'success');
-                            // 模拟云端部署过程
-                            simulateDeployProcess();
+                            updateLoadingText('部署请求已提交', 'EdgeOne 已接受触发请求；构建和生产发布状态尚未确认');
+                            addLog('EdgeOne 部署请求已提交；请以 EdgeOne 控制台的部署记录确认构建和生产发布结果', 'warn');
+                            setTimeout(() => hideLoading(), 1500);
                         } else {
                             hideLoading();
                             addLog(\`云端部署失败: \${result.message}\`, 'error');
@@ -481,132 +481,6 @@ function confirmDeploySystem() {
                 console.error('获取部署平台信息失败:', error);
             });
     });
-}
-
-// 模拟云端部署过程
-function simulateDeployProcess() {
-    let progress = 0;
-    const progressInterval = setInterval(() => {
-        progress += Math.random() * 8;
-        if (progress >= 100) {
-            progress = 10;
-            clearInterval(progressInterval);
-        }
-        updateProgress(progress);
-    }, 300);
-
-    // 模拟部署步骤
-    const steps = [
-        { delay: 100, text: '检查环境变量...', detail: '验证配置文件', log: '配置文件验证通过' },
-        { delay: 5000, text: '触发云端部署...', detail: '部署到当前平台', log: '云端部署已触发' },
-        { delay: 9500, text: '构建项目...', detail: '云端构建中', log: '云端构建完成' },
-        { delay: 5000, text: '部署更新...', detail: '发布到生产环境', log: '更新已部署' },
-        { delay: 5500, text: '服务重启...', detail: '应用新配置', log: '服务已重启' },
-        { delay: 5000, text: '健康检查...', detail: '验证服务状态', log: '所有服务运行正常' },
-    ];
-
-    steps.forEach(step => {
-        setTimeout(() => {
-            updateLoadingText(step.text, step.detail);
-            addLog(step.log, 'success');
-        }, step.delay);
-    });
-
-    // 部署后检查服务是否可用
-    setTimeout(() => {
-        checkDeploymentStatus();
-    }, 900); // 延长延迟以确保模拟部署过程完成
-}
-
-// 检查部署状态，每隔5秒请求/api/logs接口直到请求成功
-function checkDeploymentStatus() {
-    const checkInterval = setInterval(() => {
-        updateLoadingText('部署完成，检查服务状态...', '正在请求 /api/logs 接口');
-        addLog('正在检查服务状态...', 'info');
-
-        fetch(buildApiUrl('/api/logs'))
-            .then(response => {
-                if (response.ok) {
-                    // 请求成功，停止检查
-                    clearInterval(checkInterval);
-                    // 更新加载状态而不是立即隐藏
-                    updateLoadingText('部署成功！', '服务已重启并正常运行');
-                    addLog('===== 部署完成 =====', 'success');
-                    addLog('部署版本: ' + latestVersion, 'info');
-                    addLog('系统已更新并重启', 'success');
-                    
-                    // 部署完成后再次确认，访问/api/logs接口来确认部署完成
-                    confirmDeploymentByLogs();
-                } else {
-                    addLog('服务检查中 - 状态码: ' + response.status, 'info');
-                }
-            })
-            .catch(error => {
-                addLog('服务检查中 - 连接失败: ' + error.message, 'info');
-            });
-    }, 500); // 每5秒检查一次
-}
-
-// 部署完成后通过访问/api/logs接口来确认部署完成
-function confirmDeploymentByLogs() {
-    // 部署完成后的确认检查
-    let confirmationAttempts = 0;
-    const maxAttempts = 3; // 最多尝试3次确认部署完成
-
-    const confirmationInterval = setInterval(() => {
-        confirmationAttempts++;
-        updateLoadingText('部署完成确认中...', '正在确认部署完成 (' + confirmationAttempts + '/' + maxAttempts + ')');
-        addLog('部署完成确认 - 尝试 ' + confirmationAttempts + '/' + maxAttempts, 'info');
-
-        fetch(buildApiUrl('/api/logs'))
-            .then(response => {
-                if (response.ok) {
-                    // 请求成功，停止确认检查
-                    clearInterval(confirmationInterval);
-                    // 显示成功信息后延迟隐藏加载遮罩
-                    updateLoadingText('部署确认成功！', '服务已重启并正常运行');
-                    addLog('部署确认成功 - /api/logs 接口访问正常', 'success');
-                    
-                    setTimeout(() => {
-                        hideLoading();
-                        // 显示成功弹窗
-                        customAlert('🎉 部署成功！云端部署已完成，服务已重启，配置已生效');
-                        addLog('🎉 部署成功！云端部署已完成，服务已重启，配置已生效', 'success');
-                    }, 200);
-                } else if (confirmationAttempts >= maxAttempts) {
-                    // 达到最大尝试次数，停止确认检查
-                    clearInterval(confirmationInterval);
-                    updateLoadingText('部署确认完成', '服务已重启');
-                    addLog('部署确认完成 - 已达到最大尝试次数', 'warn');
-                    
-                    setTimeout(() => {
-                        hideLoading();
-                        // 显示成功弹窗
-                        customAlert('🎉 部署成功！云端部署已完成，服务已重启，配置已生效');
-                        addLog('🎉 部署成功！云端部署已完成，服务已重启，配置已生效', 'success');
-                    }, 200);
-                } else {
-                    addLog('部署确认中 - 状态码: ' + response.status, 'info');
-                }
-            })
-            .catch(error => {
-                if (confirmationAttempts >= maxAttempts) {
-                    // 达到最大尝试次数，停止确认检查
-                    clearInterval(confirmationInterval);
-                    updateLoadingText('部署确认完成', '服务已重启');
-                    addLog('部署确认完成 - 已达到最大尝试次数', 'warn');
-                    
-                    setTimeout(() => {
-                        hideLoading();
-                        // 显示成功弹窗
-                        customAlert('🎉 部署成功！云端部署已完成，服务已重启，配置已生效');
-                        addLog('🎉 部署成功！云端部署已完成，服务已重启，配置已生效', 'success');
-                    }, 200);
-                } else {
-                    addLog('部署确认中 - 连接失败: ' + error.message, 'info');
-                }
-            });
-    }, 5000); // 每5秒检查一次，用于确认部署完成
 }
 
 // 检查URL中的token是否与currentAdminToken匹配
