@@ -5,7 +5,7 @@ import { httpGet, httpPost } from '../utils/http-util.js';
 import { addAnime, removeEarliestAnime } from '../utils/cache-util.js';
 import { convertToAsciiSum } from '../utils/codec-util.js';
 import { generateValidStartDate } from '../utils/time-util.js';
-import { titleMatches } from '../utils/common-util.js';
+import { titleMatches, extractYear } from '../utils/common-util.js';
 
 // AcFun 用户投稿视频弹幕源。AcFun 不是专门的海外电影库，
 // 这里只收录可搜索到且确实带有弹幕的长视频，避免把普通短剪辑混入电影结果。
@@ -37,8 +37,8 @@ export default class AcFunSource extends BaseSource {
       const results = data.videoList.map(item => {
         const title = String(item.title || item.emTitle || '').replace(/<[^>]*>/g, '').trim();
         const durationSeconds = this._durationSeconds(item.playDuration);
-        const timestamp = Number(item.ctime || 0);
-        const year = timestamp > 0 ? new Date(timestamp).getFullYear() : null;
+        // ctime 是 AcFun 投稿时间，不是电影上映年份；只从标题显式提取年份，避免错配。 
+        const year = extractYear(title);
         return {
           provider: 'acfun',
           mediaId: String(item.videoId || ''),
