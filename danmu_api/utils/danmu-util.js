@@ -387,7 +387,7 @@ export function convertToDanmakuJson(contents, platform) {
     items = contents;
   }
 
-  if (!items.length) {
+  if (Array.isArray(items) && items.length === 0) {
     // 如果是空数组，直接返回空数组，不抛出异常
     // 这样可以让兜底逻辑有机会执行
     return [];
