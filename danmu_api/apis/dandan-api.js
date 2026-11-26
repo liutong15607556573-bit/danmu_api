@@ -81,6 +81,18 @@ function resolveCommentCacheKey(url) {
   return containsHongguo ? `${value}::hongguo-all-episodes` : url;
 }
 
+// 分段缓存必须与整集缓存隔离，并按平台和时间范围区分。
+export function resolveSegmentCommentCacheKey(segment) {
+  const url = String(segment?.url || "").trim();
+  const platform = String(segment?.type || "");
+  const rawStart = segment?.segment_start;
+  const rawEnd = segment?.segment_end;
+  const start = rawStart !== undefined && rawStart !== null && Number.isFinite(Number(rawStart)) ? Number(rawStart) : null;
+  const end = rawEnd !== undefined && rawEnd !== null && Number.isFinite(Number(rawEnd)) ? Number(rawEnd) : null;
+  const rangeKey = JSON.stringify([platform, start, end]);
+  return resolveCommentCacheKey(`${url}::segment:${rangeKey}`);
+}
+
 function normalizeDurationValue(rawValue) {
   const duration = Number(rawValue || 0);
   if (!Number.isFinite(duration) || duration <= 0) return 0;
@@ -4017,7 +4029,7 @@ export async function getSegmentComment(segment, queryFormat) {
 
     // 检查弹幕缓存
     markStepActive('分段弹幕·缓存查询');
-    const cacheKey = resolveCommentCacheKey(url);
+    const cacheKey = resolveSegmentCommentCacheKey({ ...segment, url });
     const cachedComments = getCommentCache(cacheKey);
     if (cachedComments !== null) {
       const responseData = {
