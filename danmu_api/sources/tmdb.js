@@ -1,9 +1,10 @@
 import BaseSource from './base.js';
 import { log } from "../utils/log-util.js";
 import { getDoubanInfoByImdbId } from "../utils/douban-util.js";
-import { getTmdbExternalIds, searchTmdbTitles} from "../utils/tmdb-util.js";
+import { getTmdbExternalIds, getTmdbAlternativeTitles, searchTmdbTitles} from "../utils/tmdb-util.js";
 import { getImdbepisodes, getImdbSeasons } from "../utils/imdb-util.js";
 import { normalizeTitleForMatch } from "../utils/common-util.js";
+import { isNonChinese } from "../utils/zh-util.js";
 
 // =====================
 // 获取TMDB源播放链接
@@ -80,54 +81,89 @@ export default class TmdbSource extends BaseSource {
 
   async search(keyword) {
     try {
-      const response = await searchTmdbTitles(keyword);
-
-      const data = response.data;
-
-      let tmpAnimes = [];
-
-      // 同时匹配 TMDB 的本地化标题与原始标题。欧美影片常见情况是：
-      // Yamby/文件名使用英文原名，而 TMDB zh-CN 搜索返回中文译名；
-      // 旧逻辑只比较 name/title，导致这些影片在进入豆瓣与平台匹配前被全部过滤。
       const normalizeQuery = value => normalizeTitleForMatch(
-        String(value || '').replace(/[（(](?:19|20)\d{2}[)）]$/, '').trim()
+        String(value || '').replace(/[\s（(]+(?:19|20)\d{2}[)）]?\s*$/, '').trim()
       ).toLowerCase();
       const queryKey = normalizeQuery(keyword);
-      let tmdbItems = [];
-      if (queryKey && data?.results?.length > 0) {
-        tmdbItems = data.results.filter(item => {
-          if (!['movie', 'tv'].includes(item.media_type)) return false;
-          const localizedTitle = item.name || item.title || '';
-          const originalTitle = item.original_name || item.original_title || '';
-          return [localizedTitle, originalTitle].some(title => {
-            const titleKey = normalizeQuery(title);
-            return titleKey && titleKey === queryKey;
-          });
-        });
+      if (!queryKey) return [];
+
+      // 保留原有 zh-CN 搜索，同时为英文文件名补充 en-US 搜索。
+      // 两种语言结果合并去重，避免只因 TMDB 本地化标题不同而漏片。
+      const searchTerm = String(keyword || '').replace(/[\s（(]+(?:19|20)\d{2}[)）]?\s*$/, '').trim();
+      const searches = [searchTmdbTitles(searchTerm)];
+      if (isNonChinese(searchTerm)) {
+        searches.push(searchTmdbTitles(searchTerm, "multi", { language: "en-US", maxPages: 2 }));
+      }
+      const responses = await Promise.all(searches);
+      const resultMap = new Map();
+      for (const response of responses) {
+        const data = typeof response?.data === "string" ? JSON.parse(response.data) : response?.data;
+        for (const item of data?.results || []) {
+          if (!['movie', 'tv'].includes(item.media_type)) continue;
+          const key = `${item.media_type}:${item.id}`;
+          if (!resultMap.has(key)) resultMap.set(key, item); // 优先保留先返回的 zh-CN 本地化标题
+        }
       }
 
-      log("info", `[tmdb] tmdb items.length: ${tmdbItems.length} (localized/original exact title match)`);
+      const candidates = [...resultMap.values()];
+      const requestedYear = String(keyword).match(/[（(]?((?:19|20)\d{2})[)）]?\s*$/)?.[1] || "";
+      const yearMatches = item => {
+        if (!requestedYear) return true;
+        const date = item.release_date || item.first_air_date || "";
+        const resultYear = date.slice(0, 4);
+        return !resultYear || resultYear === requestedYear;
+      };
+      const hasTitle = (item, values) => {
+        const titles = [
+          item.name, item.title, item.original_name, item.original_title,
+          ...values
+        ];
+        return titles.some(title => {
+          const titleKey = normalizeQuery(title);
+          return titleKey && titleKey === queryKey;
+        });
+      };
+
+      // 先用主标题/原名快速精确匹配；未命中的候选再核对 TMDB 地区别名。
+      // 别名核验限制在搜索排名靠前的候选，避免无节制增加外部请求。
+      const directMatches = candidates.filter(item => yearMatches(item) && hasTitle(item, []));
+      const directIds = new Set(directMatches.map(item => `${item.media_type}:${item.id}`));
+      const aliasCandidates = directMatches.length > 0 ? [] : candidates
+        .filter(item => !directIds.has(`${item.media_type}:${item.id}`) && yearMatches(item))
+        .slice(0, 8);
+      const aliasMatches = await Promise.all(aliasCandidates.map(async item => {
+        try {
+          const response = await getTmdbAlternativeTitles(item.media_type, item.id);
+          const data = response?.data;
+          const entries = data?.results || data?.titles || [];
+          const aliases = entries.map(entry => entry.title || entry.name || "").filter(Boolean);
+          return hasTitle(item, aliases) ? item : null;
+        } catch (error) {
+          log("warn", `[tmdb] 查询候选 ${item.id} 地区别名失败: ${error.message}`);
+          return null;
+        }
+      }));
+      const tmdbItems = [...directMatches, ...aliasMatches.filter(Boolean)];
+
+      log("info", `[tmdb] TMDB候选 ${candidates.length} 条，主标题命中 ${directMatches.length} 条，地区别名命中 ${aliasMatches.filter(Boolean).length} 条`);
 
       const doubanPromises = tmdbItems.map(async (tmdbItem) => {
         try {
-          const mediaType = tmdbItem.media_type || (tmdbItem.name ? 'tv' : 'movie');
+          const mediaType = tmdbItem.media_type;
           const doubanIds = await this.getDoubanIdByTmdbId(mediaType, tmdbItem.id);
-          // DoubanSource 会再次按 queryTitle 过滤候选。这里保留已经由 TMDB 原名/译名
-          // 精确确认的检索词作为候选标题，避免英文原名被豆瓣中文译名二次过滤。
+          // 已由 TMDB 标题/地区别名精确确认，保留原检索词避免豆瓣中文译名二次过滤。
           return doubanIds.map(item => ({
             ...item,
             target: { ...(item.target || {}), title: keyword }
           }));
         } catch (error) {
           log("error", `[tmdb] 获取 TMDB ID ${tmdbItem.id} 的豆瓣 ID 失败，继续处理其他条目:`, error);
-          return []; // 失败返回空数组，不中断合并
+          return [];
         }
       });
 
       const doubanResults = await Promise.all(doubanPromises);
-      tmpAnimes = [...tmpAnimes, ...doubanResults.flat()];
-
-      return tmpAnimes;
+      return doubanResults.flat();
     } catch (error) {
       log("error", "[tmdb] getTmdbAnimes error:", {
         message: error.message,
