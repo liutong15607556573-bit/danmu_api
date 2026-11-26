@@ -235,7 +235,7 @@ export class Envs {
 
     this.accessedEnvVars.set('SOURCE_ORDER', orderArr);
 
-    return orderArr.length > 0 ? orderArr : ['douban', '360', 'renren', 'hanjutv', 'acfun', 'tmdb'];
+    return orderArr.length > 0 ? orderArr : ['douban', '360', 'renren', 'aiyifan', 'hanjutv', 'acfun', 'tmdb'];
   }
 
   /**
