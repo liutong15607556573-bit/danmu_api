@@ -6,7 +6,7 @@ dotenv.config();
 
 import test from 'node:test';
 import assert from 'node:assert';
-import { parseOffsetRules, resolveOffsetRule, offsetDuration, stripLinkOffset, applyOffset } from '../../utils/offset-util.js';
+import { parseOffsetRules, resolveOffsetRule, offsetDuration, stripLinkOffset, applyOffset, getMaxDanmuTime } from '../../utils/offset-util.js';
 
 test('stripLinkOffset 解析 @偏移 后缀（@秒数 / @%百分比 / 无偏移 / 合并链接仅取末段）', async () => {
     assert.deepEqual(stripLinkOffset('https://x.com/v/1'), { cleanUrl: 'https://x.com/v/1', offset: 0, percent: false });
@@ -137,10 +137,7 @@ test('applyOffset 大量弹幕百分比偏移保持数量、顺序与时间轴�
     p: `${(index / 10).toFixed(2)},1,16777215,b`,
     m: `弹幕${index}`
   }));
-  const maxTime = danmus.reduce((max, danmu) => {
-    const time = parseFloat(danmu.p.split(',')[0]) || 0;
-    return time > max ? time : max;
-  }, 0);
+  const maxTime = getMaxDanmuTime(danmus);
   const offset = 50;
   const shifted = applyOffset(danmus, offset, { usePercent: true, videoDuration: maxTime });
 
