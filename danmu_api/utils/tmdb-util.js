@@ -51,12 +51,13 @@ export async function searchTmdbTitles(title, mediaType = "multi", options = {})
   const {
     page = 1,          // 起始页码
     maxPages = 3,      // 最多获取几页结果
-    signal = null      // 中断信号
+    signal = null,     // 中断信号
+    language = "zh-CN" // 搜索语言，默认保持原有中文行为
   } = options;
 
   // 如果指定了具体页码，只获取单页
   if (options.page !== undefined) {
-    const url = `search/${mediaType}?api_key=${globals.tmdbApiKey}&query=${encodeURIComponent(title)}&language=zh-CN&page=${page}`;
+    const url = `search/${mediaType}?api_key=${globals.tmdbApiKey}&query=${encodeURIComponent(title)}&language=${language}&page=${page}`;
     return await tmdbApiGet(url, { signal });
   }
 
@@ -69,7 +70,7 @@ export async function searchTmdbTitles(title, mediaType = "multi", options = {})
       throw new DOMException('Aborted', 'AbortError');
     }
 
-    const url = `search/${mediaType}?api_key=${globals.tmdbApiKey}&query=${encodeURIComponent(title)}&language=zh-CN&page=${currentPage}`;
+    const url = `search/${mediaType}?api_key=${globals.tmdbApiKey}&query=${encodeURIComponent(title)}&language=${language}&page=${currentPage}`;
     const response = await tmdbApiGet(url, { signal });
 
     if (!response || !response.data) {
@@ -114,7 +115,7 @@ export async function getTmdbExternalIds(mediaType, tmdbId, options = {}) {
 }
 
 // 使用 TMDB API 获取别名
-async function getTmdbAlternativeTitles(mediaType, tmdbId, options = {}) {
+export async function getTmdbAlternativeTitles(mediaType, tmdbId, options = {}) {
   const url = `${mediaType}/${tmdbId}/alternative_titles?api_key=${globals.tmdbApiKey}`;
   return await tmdbApiGet(url, options);
 }
