@@ -100,7 +100,8 @@ export default class TmdbSource extends BaseSource {
         const data = typeof response?.data === "string" ? JSON.parse(response.data) : response?.data;
         for (const item of data?.results || []) {
           if (!['movie', 'tv'].includes(item.media_type)) continue;
-          resultMap.set(`${item.media_type}:${item.id}`, item);
+          const key = `${item.media_type}:${item.id}`;
+          if (!resultMap.has(key)) resultMap.set(key, item); // 优先保留先返回的 zh-CN 本地化标题
         }
       }
 
