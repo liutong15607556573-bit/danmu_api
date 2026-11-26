@@ -180,7 +180,7 @@ test('http-util httpGetWithStreamCheck 流式读取、嗅探回调与错误处�
 });
 
 test('EdgeOne 大型 JSON 响应在客户端支持时使用 gzip 压缩', async () => {
-  const payload = { count: 1200, comments: Array.from({ length: 1200 }, (_, i) => ({
+  const payload = { count: 1200, comments: Array.from({ length: 106850 }, (_, i) => ({
     p: `${i},1,16777215,[dandan]`,
     m: '这是一条用于验证 EdgeOne 大型弹幕响应压缩的测试弹幕内容',
     cid: i + 1,
@@ -188,9 +188,11 @@ test('EdgeOne 大型 JSON 响应在客户端支持时使用 gzip 压缩', async 
   const request = new Request('https://example.com/api/v2/comment/1', {
     headers: { 'accept-encoding': 'gzip, deflate, br' },
   });
-  const original = new Response(JSON.stringify(payload), {
+  const rawJson = JSON.stringify(payload);
+  assert.ok(Buffer.byteLength(rawJson) > 6 * 1024 * 1024, '模拟的完整弹幕 JSON 超过 EdgeOne 6 MB 限制');
+  const original = new Response(rawJson, {
     status: 206,
-    headers: { 'content-type': 'application/json', 'content-length': '999999', vary: 'Origin' },
+    headers: { 'content-type': 'application/json', 'content-length': String(Buffer.byteLength(rawJson)), vary: 'Origin' },
   });
 
   const compressed = compressResponseForEdgeOne(original, request, 'edgeone');
@@ -200,7 +202,9 @@ test('EdgeOne 大型 JSON 响应在客户端支持时使用 gzip 压缩', async 
   assert.match(compressed.headers.get('vary'), /Origin/i);
   assert.match(compressed.headers.get('vary'), /Accept-Encoding/i);
 
-  const decoded = JSON.parse(gunzipSync(Buffer.from(await compressed.arrayBuffer())).toString('utf8'));
+  const compressedBytes = Buffer.from(await compressed.arrayBuffer());
+  assert.ok(compressedBytes.length < 6 * 1024 * 1024, 'gzip 后响应体低于 EdgeOne 6 MB 限制');
+  const decoded = JSON.parse(gunzipSync(compressedBytes).toString('utf8'));
   assert.deepStrictEqual(decoded, payload, '解压后内容与原 JSON 完全一致');
 });
 
