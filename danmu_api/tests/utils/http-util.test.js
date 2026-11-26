@@ -230,3 +230,37 @@ test('EdgeOne gzip 不支持时保持原响应，且其他部署不受影响', a
   );
   assert.strictEqual(zeroQuality.headers.has('content-encoding'), false, 'gzip;q=0 时不压缩');
 });
+
+
+test('EdgeOne 在 CompressionStream 不可用时使用 Node zlib gzip，避免大型 JSON 原样超限', async () => {
+  const payload = {
+    count: 106850,
+    comments: Array.from({ length: 106850 }, (_, i) => ({
+      p: `${i},1,16777215,[dandan]`,
+      m: '用于验证 EdgeOne zlib gzip 降级路径的弹幕内容',
+      cid: i + 1,
+    })),
+  };
+  const rawJson = JSON.stringify(payload);
+  assert.ok(Buffer.byteLength(rawJson) > 6 * 1024 * 1024, '原始响应超过 EdgeOne 6 MB 限制');
+
+  const request = new Request('https://example.com/api/v2/comment/1', {
+    headers: { 'accept-encoding': 'gzip, deflate, br' },
+  });
+  const originalCompressionStream = globalThis.CompressionStream;
+  try {
+    globalThis.CompressionStream = undefined;
+    const response = compressResponseForEdgeOne(new Response(rawJson, {
+      headers: { 'content-type': 'application/json', 'content-length': String(Buffer.byteLength(rawJson)) },
+    }), request, 'edgeone');
+
+    assert.strictEqual(response.headers.get('content-encoding'), 'gzip');
+    assert.strictEqual(response.headers.has('content-length'), false);
+    const compressedBytes = Buffer.from(await response.arrayBuffer());
+    assert.ok(compressedBytes.length < 6 * 1024 * 1024, 'zlib gzip 后响应低于 EdgeOne 6 MB 限制');
+    assert.deepStrictEqual(JSON.parse(gunzipSync(compressedBytes).toString('utf8')), payload,
+      'zlib gzip 解压后完整保留全部弹幕');
+  } finally {
+    globalThis.CompressionStream = originalCompressionStream;
+  }
+});
