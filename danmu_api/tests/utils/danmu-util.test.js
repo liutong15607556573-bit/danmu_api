@@ -237,3 +237,16 @@ test('convertToDanmakuJson XML 输入惰性解析且兼容空 XML', () => {
   );
   assert.deepStrictEqual(convertToDanmakuJson('<i></i>', 'test'), []);
 });
+
+test('convertToDanmakuJson 大量 XML 弹幕完整转换', () => {
+  Globals.init({ GROUP_MINUTE: '0', DANMU_LIMIT: '0', CONVERT_COLOR: 'default', BLOCKED_WORDS: '' });
+  const count = 25000;
+  const largeXml = '<i>' + Array.from({ length: count }, (_, index) =>
+    `<d p="${(index / 10).toFixed(1)},1,25,16777215,0,0,0,${index}">弹幕${index}</d>`
+  ).join('') + '</i>';
+
+  const out = convertToDanmakuJson(largeXml, 'test');
+  assert.strictEqual(out.length, count);
+  assert.strictEqual(out[0].m, '弹幕0');
+  assert.strictEqual(out[out.length - 1].m, `弹幕${count - 1}`);
+});
