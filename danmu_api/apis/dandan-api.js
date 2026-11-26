@@ -121,13 +121,21 @@ function buildDanmuResponse(data, videoDuration = null) {
 
 function formatSegmentListResponse(segmentResult) {
   if (segmentResult && typeof segmentResult === 'object' && Array.isArray(segmentResult.segmentList)) {
-    return jsonResponse(segmentResult);
+    // Keep the existing Yamby/API envelope: segment metadata lives under comments.
+    return jsonResponse({
+      errorCode: 0,
+      success: true,
+      errorMessage: "",
+      count: segmentResult.segmentList.length,
+      comments: segmentResult,
+    });
   }
   return jsonResponse({
     errorCode: 501,
     success: false,
     errorMessage: "This source does not support segmented comment responses",
-    segmentList: [],
+    count: 0,
+    comments: { segmentList: [] },
   }, 501);
 }
 
