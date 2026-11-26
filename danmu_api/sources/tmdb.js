@@ -5,6 +5,7 @@ import { getTmdbExternalIds, getTmdbAlternativeTitles, searchTmdbTitles} from ".
 import { getImdbepisodes, getImdbSeasons } from "../utils/imdb-util.js";
 import { normalizeTitleForMatch } from "../utils/common-util.js";
 import { isNonChinese } from "../utils/zh-util.js";
+import { globals } from "../configs/globals.js";
 
 // =====================
 // 获取TMDB源播放链接
