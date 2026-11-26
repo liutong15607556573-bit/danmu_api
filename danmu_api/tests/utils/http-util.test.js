@@ -6,8 +6,9 @@ dotenv.config();
 
 import test from 'node:test';
 import assert from 'node:assert';
+import { gunzipSync } from 'node:zlib';
 import {
-  httpPatch, httpPut, httpDelete, jsonResponse, xmlResponse, binResponse, buildQueryString,
+  httpPatch, httpPut, httpDelete, jsonResponse, xmlResponse, binResponse, compressResponseForEdgeOne, buildQueryString,
   sortedQueryString, updateQueryString, getPathname, toLogSourceName, runWithHttpCache,
   getPageTitle, httpGetWithStreamCheck, sourceLogContext, httpCacheContext,
 } from '../../utils/http-util.js';
@@ -176,4 +177,52 @@ test('http-util httpGetWithStreamCheck 流式读取、嗅探回调与错误处�
     () => httpGetWithStreamCheck('http://example.com/e'),
   );
   assert.strictEqual(serverError, null, '非 2xx 由内部捕获并返回 null（调用方以 null 表示本次无数据）');
+});
+
+test('EdgeOne 大型 JSON 响应在客户端支持时使用 gzip 压缩', async () => {
+  const payload = { count: 1200, comments: Array.from({ length: 1200 }, (_, i) => ({
+    p: `\${i},1,16777215,[dandan]`,
+    m: '这是一条用于验证 EdgeOne 大型弹幕响应压缩的测试弹幕内容',
+    cid: i + 1,
+  })) };
+  const request = new Request('https://example.com/api/v2/comment/1', {
+    headers: { 'accept-encoding': 'gzip, deflate, br' },
+  });
+  const original = new Response(JSON.stringify(payload), {
+    status: 206,
+    headers: { 'content-type': 'application/json', 'content-length': '999999', vary: 'Origin' },
+  });
+
+  const compressed = compressResponseForEdgeOne(original, request, 'edgeone');
+  assert.strictEqual(compressed.status, 206, '保留原状态码');
+  assert.strictEqual(compressed.headers.get('content-encoding'), 'gzip');
+  assert.strictEqual(compressed.headers.has('content-length'), false, '压缩后移除过期长度');
+  assert.match(compressed.headers.get('vary'), /Origin/i);
+  assert.match(compressed.headers.get('vary'), /Accept-Encoding/i);
+
+  const decoded = JSON.parse(gunzipSync(Buffer.from(await compressed.arrayBuffer())).toString('utf8'));
+  assert.deepStrictEqual(decoded, payload, '解压后内容与原 JSON 完全一致');
+});
+
+test('EdgeOne gzip 不支持时保持原响应，且其他部署不受影响', async () => {
+  const makeResponse = () => new Response('{"ok":true}', {
+    headers: { 'content-type': 'application/json' },
+  });
+  const gzipRequest = new Request('https://example.com/api', {
+    headers: { 'accept-encoding': 'gzip' },
+  });
+  const plainRequest = new Request('https://example.com/api');
+
+  const nonEdgeOne = compressResponseForEdgeOne(makeResponse(), gzipRequest, 'cloudflare');
+  assert.strictEqual(nonEdgeOne.headers.has('content-encoding'), false, 'Cloudflare/其他部署不改变');
+
+  const noGzip = compressResponseForEdgeOne(makeResponse(), plainRequest, 'edgeone');
+  assert.strictEqual(noGzip.headers.has('content-encoding'), false, '客户端未声明 gzip 时不压缩');
+
+  const zeroQuality = compressResponseForEdgeOne(
+    makeResponse(),
+    new Request('https://example.com/api', { headers: { 'accept-encoding': 'gzip;q=0' } }),
+    'edgeone',
+  );
+  assert.strictEqual(zeroQuality.headers.has('content-encoding'), false, 'gzip;q=0 时不压缩');
 });
