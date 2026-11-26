@@ -5,6 +5,7 @@ import { getTmdbExternalIds, getTmdbAlternativeTitles, searchTmdbTitles} from ".
 import { getImdbepisodes, getImdbSeasons } from "../utils/imdb-util.js";
 import { normalizeTitleForMatch } from "../utils/common-util.js";
 import { isNonChinese } from "../utils/zh-util.js";
+import { globals } from "../configs/globals.js";
 
 // =====================
 // 获取TMDB源播放链接
@@ -86,6 +87,12 @@ export default class TmdbSource extends BaseSource {
       ).toLowerCase();
       const queryKey = normalizeQuery(keyword);
       if (!queryKey) return [];
+
+      // TMDB is optional. Do not issue unauthenticated requests when no API key is configured.
+      if (!globals.tmdbApiKey) {
+        log("info", "[tmdb] 未配置API密钥，跳过TMDB电影/电视剧搜索");
+        return [];
+      }
 
       // 保留原有 zh-CN 搜索，同时为英文文件名补充 en-US 搜索。
       // 两种语言结果合并去重，避免只因 TMDB 本地化标题不同而漏片。
