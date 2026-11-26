@@ -107,3 +107,14 @@ test('系统设置页的环境变量写接口统一携带 ADMIN_TOKEN', () => {
     assert.match(systemSettingsJsContent, /function isAdminAuthError\(status, result\)/);
     assert.match(systemSettingsJsContent, /alertAdminTokenRequired\(\)/);
 });
+
+
+test('EdgeOne redeploy UI reports request acceptance without fabricating deployment completion', () => {
+  assert.match(systemSettingsJsContent, /部署请求已提交/);
+  assert.match(systemSettingsJsContent, /构建和生产发布状态尚未确认/);
+  assert.match(systemSettingsJsContent, /EdgeOne 控制台的部署记录确认构建和生产发布结果/);
+  assert.doesNotMatch(systemSettingsJsContent, /function simulateDeployProcess\(/);
+  assert.doesNotMatch(systemSettingsJsContent, /function checkDeploymentStatus\(/);
+  assert.doesNotMatch(systemSettingsJsContent, /function confirmDeploymentByLogs\(/);
+  assert.doesNotMatch(systemSettingsJsContent, /部署确认成功！/);
+});
