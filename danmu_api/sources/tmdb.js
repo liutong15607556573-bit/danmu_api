@@ -96,6 +96,7 @@ export default class TmdbSource extends BaseSource {
       let tmdbItems = [];
       if (queryKey && data?.results?.length > 0) {
         tmdbItems = data.results.filter(item => {
+          if (!['movie', 'tv'].includes(item.media_type)) return false;
           const localizedTitle = item.name || item.title || '';
           const originalTitle = item.original_name || item.original_title || '';
           return [localizedTitle, originalTitle].some(title => {
