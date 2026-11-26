@@ -8,7 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import { gunzipSync } from 'node:zlib';
 import {
-  httpPatch, httpPut, httpDelete, jsonResponse, xmlResponse, binResponse, compressResponseForEdgeOne, buildQueryString,
+  httpGet, httpPatch, httpPut, httpDelete, jsonResponse, xmlResponse, binResponse, compressResponseForEdgeOne, buildQueryString,
   sortedQueryString, updateQueryString, getPathname, toLogSourceName, runWithHttpCache,
   getPageTitle, httpGetWithStreamCheck, sourceLogContext, httpCacheContext,
 } from '../../utils/http-util.js';
@@ -88,6 +88,28 @@ test('http-util toLogSourceName 映射调度键到日志名', () => {
   assert.strictEqual(toLogSourceName('imgo'), 'mango');
   assert.strictEqual(toLogSourceName('bilibili'), 'bilibili', '无映射时原样返回');
   assert.strictEqual(toLogSourceName(''), '');
+});
+
+test('httpGet 请求复用缓存按 URL、请求头和响应解析选项隔离', async () => {
+  let calls = 0;
+  const capture = async (url, options) => {
+    calls++;
+    return new Response(JSON.stringify({ authorization: options.headers.authorization }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  await withMockFetch(capture, () => runWithHttpCache(async () => {
+    const first = await httpGet('https://example.com/shared', { headers: { authorization: 'source-a' } });
+    const sameRequest = await httpGet('https://example.com/shared', { headers: { authorization: 'source-a' } });
+    const differentRequest = await httpGet('https://example.com/shared', { headers: { authorization: 'source-b' } });
+
+    assert.deepStrictEqual(first.data, { authorization: 'source-a' });
+    assert.deepStrictEqual(sameRequest.data, { authorization: 'source-a' }, '相同请求可以复用响应');
+    assert.deepStrictEqual(differentRequest.data, { authorization: 'source-b' }, '不同请求头不能误用其他源的响应');
+    assert.strictEqual(calls, 2, '同请求只发一次，不同请求头各自请求');
+  }));
 });
 
 test('http-util runWithHttpCache / sourceLogContext 提供请求级隔离的上下文', async () => {
