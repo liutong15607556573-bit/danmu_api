@@ -22,13 +22,16 @@ async function loadFileCacheModules() {
 const lastSearchMap = new Map();
 
 export function setLastSearch(ip, data) {
+    lastSearchMap.delete(ip);
     lastSearchMap.set(ip, { ...data, timestamp: Date.now() });
-    // 简单的清理逻辑：如果map太大，清理一半
+    // 先清理超过 1 小时的记录，再强制限制容量，避免高 IP 流量下无界增长。
     if (lastSearchMap.size > 200) {
+        const now = Date.now();
         for (const [key, value] of lastSearchMap) {
-            if (Date.now() - value.timestamp > 3600 * 1000) { // 清理超过1小时的
-                lastSearchMap.delete(key);
-            }
+            if (now - value.timestamp > 3600 * 1000) lastSearchMap.delete(key);
+        }
+        while (lastSearchMap.size > 200) {
+            lastSearchMap.delete(lastSearchMap.keys().next().value);
         }
     }
 }
@@ -332,6 +335,9 @@ export function getSearchCache(keyword, detailsMap = null) {
     if (isSearchCacheValid(keyword)) {
         log("info", `[cache] Using search cache for "${keyword}"`);
         const cached = globals.searchCache.get(keyword);
+        // 命中时刷新 Map 顺序，让容量淘汰优先清除最久未使用的条目。
+        globals.searchCache.delete(keyword);
+        globals.searchCache.set(keyword, cached);
 
         if (detailsMap instanceof Map && Array.isArray(cached.details)) {
             cached.details.forEach(anime => {
@@ -351,6 +357,7 @@ export function setSearchCache(keyword, results, detailsMap = null) {
     // 写入前先清理所有过期条目
     sweepExpiredCache(globals.searchCache, globals.searchCacheMinutes, 'searchCache');
 
+    globals.searchCache.delete(keyword);
     globals.searchCache.set(keyword, {
         results: results,
         details: details,
@@ -400,7 +407,11 @@ export function isCommentCacheValid(videoUrl) {
 export function getCommentCache(videoUrl) {
     if (isCommentCacheValid(videoUrl)) {
         log("info", `[cache] Using comment cache for "${videoUrl}"`);
-        return globals.commentCache.get(videoUrl).comments;
+        const cached = globals.commentCache.get(videoUrl);
+        // 命中时刷新顺序，容量淘汰时优先保留近期访问的弹幕。
+        globals.commentCache.delete(videoUrl);
+        globals.commentCache.set(videoUrl, cached);
+        return cached.comments;
     }
     return null;
 }
@@ -410,6 +421,7 @@ export function setCommentCache(videoUrl, comments) {
     // 写入前先清理所有过期条目
     sweepExpiredCache(globals.commentCache, globals.commentCacheMinutes, 'commentCache');
 
+    globals.commentCache.delete(videoUrl);
     globals.commentCache.set(videoUrl, {
         comments: comments,
         timestamp: Date.now()
