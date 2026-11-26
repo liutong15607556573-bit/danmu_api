@@ -7,10 +7,11 @@ on:
   pull_request:
     branches:
       - main
-    if: github.repository == 'huangxd-/danmu_api'
 
 jobs:
   build:
+    # Fork 仓库没有上游 Docker Hub 发布凭据，不应尝试登录或推送镜像
+    if: github.repository == 'huangxd-/danmu_api'
     runs-on: ubuntu-latest
 
     steps:
