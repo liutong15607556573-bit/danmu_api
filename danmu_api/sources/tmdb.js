@@ -82,16 +82,17 @@ export default class TmdbSource extends BaseSource {
   async search(keyword) {
     try {
       const normalizeQuery = value => normalizeTitleForMatch(
-        String(value || '').replace(/[（(](?:19|20)\d{2}[)）]$/, '').trim()
+        String(value || '').replace(/[\s（(]+(?:19|20)\d{2}[)）]?\s*$/, '').trim()
       ).toLowerCase();
       const queryKey = normalizeQuery(keyword);
       if (!queryKey) return [];
 
       // 保留原有 zh-CN 搜索，同时为英文文件名补充 en-US 搜索。
       // 两种语言结果合并去重，避免只因 TMDB 本地化标题不同而漏片。
-      const searches = [searchTmdbTitles(keyword)];
-      if (isNonChinese(keyword)) {
-        searches.push(searchTmdbTitles(keyword, "multi", { language: "en-US", maxPages: 2 }));
+      const searchTerm = String(keyword || '').replace(/[\s（(]+(?:19|20)\d{2}[)）]?\s*$/, '').trim();
+      const searches = [searchTmdbTitles(searchTerm)];
+      if (isNonChinese(searchTerm)) {
+        searches.push(searchTmdbTitles(searchTerm, "multi", { language: "en-US", maxPages: 2 }));
       }
       const responses = await Promise.all(searches);
       const resultMap = new Map();
