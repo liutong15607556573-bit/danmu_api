@@ -250,3 +250,18 @@ test('convertToDanmakuJson 大量 XML 弹幕完整转换', () => {
   assert.strictEqual(out[0].m, '弹幕0');
   assert.strictEqual(out[out.length - 1].m, `弹幕${count - 1}`);
 });
+
+test('convertToDanmakuJson 大量 XML 弹幕保留时间与顺序', () => {
+  Globals.init({ GROUP_MINUTE: '0', DANMU_LIMIT: '0', CONVERT_COLOR: 'default', BLOCKED_WORDS: '' });
+  const count = 25000;
+  const xml = '<i>' + Array.from({ length: count }, (_, index) =>
+    `<d p="${(index / 10).toFixed(1)},1,25,16777215,0,0,0,${index}">顺序检查${index}</d>`
+  ).join('') + '</i>';
+
+  const out = convertToDanmakuJson(xml, 'test');
+  assert.strictEqual(out.length, count);
+  assert.strictEqual(out[0].p, '0.00,1,16777215,[test]');
+  assert.strictEqual(out[12500].p, '1250.00,1,16777215,[test]');
+  assert.strictEqual(out[count - 1].p, '2499.90,1,16777215,[test]');
+  assert.strictEqual(out[count - 1].m, '顺序检查24999');
+});
