@@ -90,7 +90,7 @@ export default class TmdbSource extends BaseSource {
       // Yamby/文件名使用英文原名，而 TMDB zh-CN 搜索返回中文译名；
       // 旧逻辑只比较 name/title，导致这些影片在进入豆瓣与平台匹配前被全部过滤。
       const normalizeQuery = value => normalizeTitleForMatch(
-        String(value || '').replace(/[（(](?:19|20)\\d{2}[)）]$/, '').trim()
+        String(value || '').replace(/[（(](?:19|20)\d{2}[)）]$/, '').trim()
       ).toLowerCase();
       const queryKey = normalizeQuery(keyword);
       let tmdbItems = [];
