@@ -80,6 +80,14 @@ const forwardRuntimeCompatPlugin = {
       namespace: 'forward-node-builtins'
     }));
 
+    // The shared server HTTP utility imports Node gzip primitives for the
+    // Node/EdgeOne adapter. The standalone browser widget never executes that
+    // fallback, so provide inert shims just as we do for other Node built-ins.
+    build.onResolve({ filter: /^node:(?:stream|zlib)$/ }, (args) => ({
+      path: args.path.slice('node:'.length),
+      namespace: 'forward-node-builtins'
+    }));
+
     // brotli ships a compressed dictionary specifically for browser bundles.
     build.onResolve({ filter: /^\.\/dictionary-data$/ }, (args) => {
       if (/[\\/]node_modules[\\/]brotli[\\/]dec[\\/]dictionary\.js$/.test(args.importer)) {
@@ -115,6 +123,16 @@ const forwardRuntimeCompatPlugin = {
     build.onLoad({ filter: /^(?:http|https)$/, namespace: 'forward-node-builtins' }, () => ({
       loader: 'js',
       contents: `export default { Agent: class Agent {} };`
+    }));
+
+    build.onLoad({ filter: /^stream$/, namespace: 'forward-node-builtins' }, () => ({
+      loader: 'js',
+      contents: `export const Readable = { fromWeb() { throw new Error('Node streams are unavailable in the forward widget runtime'); } };`
+    }));
+
+    build.onLoad({ filter: /^zlib$/, namespace: 'forward-node-builtins' }, () => ({
+      loader: 'js',
+      contents: `export function createGzip() { throw new Error('Node zlib is unavailable in the forward widget runtime'); }`
     }));
 
     build.onLoad({ filter: /^dan-any$/, namespace: 'forward-optional-modules' }, () => ({
