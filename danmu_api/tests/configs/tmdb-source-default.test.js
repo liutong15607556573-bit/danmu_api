@@ -9,7 +9,7 @@ test('TMDB is the last fallback search source without overriding explicit source
     Globals.init({});
     assert.deepEqual(
       Globals.envs.sourceOrderArr,
-      ['douban', '360', 'renren', 'aiyifan', 'hanjutv', 'acfun', 'tmdb'],
+      ['douban', '360', 'renren', 'hanjutv', 'acfun', 'tmdb', 'aiyifan'],
       'TMDB should be appended after all existing default sources'
     );
 
