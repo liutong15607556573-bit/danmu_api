@@ -1,5 +1,5 @@
 import { Globals } from './configs/globals.js';
-import { jsonResponse } from './utils/http-util.js';
+import { jsonResponse, compressResponseForEdgeOne } from './utils/http-util.js';
 import { log, formatLogMessage } from './utils/log-util.js'
 import { getFavoriteCachesFromRedis, judgeRedisValid, initializePersistentCaches } from "./utils/redis-util.js";
 import { cleanupExpiredIPs, findUrlById, getCommentCache, judgeLocalCacheValid } from "./utils/cache-util.js";
@@ -893,7 +893,8 @@ export async function handleRequestWithTrace(req, env, deployPlatform, clientIp,
   let retained = false;
   return runWithTrace(trace, async () => {
     try {
-      const response = await handleRequest(req, env, deployPlatform, clientIp);
+      const rawResponse = await handleRequest(req, env, deployPlatform, clientIp);
+      const response = compressResponseForEdgeOne(rawResponse, req, deployPlatform);
       trace.statusCode = response?.status ?? null;
       // 列表据此直接区分成败，不必逐条打开详情
       const record = globals.reqRecords.find(item => item.requestId === trace.id);
