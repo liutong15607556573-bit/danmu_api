@@ -26,9 +26,9 @@ export class Envs {
   static RAW_ENV_KEYS = new Set(['ADMIN_TOKEN', 'AI_API_KEY', 'AI_MATCH_PROMPT', 'ANIME_TITLE_FILTER', 'AUTO_MATCH_MAPPING_TABLE', 'BLOCKED_WORDS', 'BILIBILI_COOKIE', 'COLOR_POOL', 'CUSTOM_MERGE_RULES', 'CUSTOM_SOURCE_API_URL', 'DANDANPLAY_ACCOUNT', 'DANDANPLAY_PASSWORD', 'DANMU_OFFSET', 'DANMU_PUSH_URL', 'DEPLOY_PLATFROM_ACCOUNT', 'DEPLOY_PLATFROM_PROJECT', 'DEPLOY_PLATFROM_TOKEN', 'DOUBAN_COOKIE', 'EPISODE_TITLE_FILTER', 'IP_BLACKLIST', 'LOCAL_REDIS_URL', 'OTHER_SERVER', 'PROXY_URL', 'TITLE_MAPPING_TABLE', 'TITLE_NOISE_FILTER', 'TITLE_PLATFORM_MAP', 'TMDB_API_KEY', 'TOKEN', 'UPSTASH_REDIS_REST_TOKEN', 'UPSTASH_REDIS_REST_URL', 'VOD_SERVERS']);
 
   static VOD_ALLOWED_PLATFORMS = ['qiyi', 'bilibili1', 'imgo', 'youku', 'qq', 'migu', 'sohu', 'leshi', 'xigua', 'maiduidui', 'aiyifan']; // vod允许的播放平台
-  static ALLOWED_PLATFORMS = ['qiyi', 'bilibili1', 'imgo', 'youku', 'qq', 'migu', 'renren', 'hanjutv', 'sohu', 'leshi', 'xigua', 'maiduidui', 'aiyifan', 'hongguo', 'dandan', 'bahamut', 'animeko', 'custom']; // 全部源允许的播放平台
-  static ALLOWED_SOURCES = ['360', 'vod', 'tmdb', 'douban', 'tencent', 'youku', 'iqiyi', 'imgo', 'bilibili', 'migu', 'renren', 'hanjutv', 'sohu', 'leshi', 'xigua', 'maiduidui', 'aiyifan', 'hongguo', 'dandan', 'bahamut', 'animeko', 'custom', 'local']; // 允许的源
-  static MERGE_ALLOWED_SOURCES = ['tencent', 'youku', 'iqiyi', 'imgo', 'bilibili', 'migu', 'renren', 'hanjutv', 'sohu', 'leshi', 'xigua', 'maiduidui', 'aiyifan', 'hongguo', 'dandan', 'bahamut', 'animeko']; // 允许的源合并
+  static ALLOWED_PLATFORMS = ['qiyi', 'bilibili1', 'imgo', 'youku', 'qq', 'migu', 'renren', 'hanjutv', 'sohu', 'leshi', 'xigua', 'maiduidui', 'aiyifan', 'hongguo', 'dandan', 'bahamut', 'animeko', 'custom', 'acfun']; // 全部源允许的播放平台
+  static ALLOWED_SOURCES = ['360', 'vod', 'tmdb', 'douban', 'tencent', 'youku', 'iqiyi', 'imgo', 'bilibili', 'migu', 'renren', 'hanjutv', 'sohu', 'leshi', 'xigua', 'maiduidui', 'aiyifan', 'hongguo', 'dandan', 'bahamut', 'animeko', 'custom', 'local', 'acfun']; // 允许的源
+  static MERGE_ALLOWED_SOURCES = ['tencent', 'youku', 'iqiyi', 'imgo', 'bilibili', 'migu', 'renren', 'hanjutv', 'sohu', 'leshi', 'xigua', 'maiduidui', 'aiyifan', 'hongguo', 'dandan', 'bahamut', 'animeko', 'acfun']; // 允许的源合并
   static DEFAULT_AI_MATCH_PROMPT = `你是一个专业的影视匹配专家，你的的任务是根据用户提供的 JSON 数据，从候选动漫列表中匹配最符合条件的动漫及集数。
 
 输入字段说明：
@@ -226,7 +226,7 @@ export class Envs {
    * @returns {Array} 源排序数组
    */
   static resolveSourceOrder() {
-    let sourceOrder = this.get('SOURCE_ORDER', 'douban,360,renren,hanjutv', 'string');
+    let sourceOrder = this.get('SOURCE_ORDER', 'douban,360,renren,hanjutv,acfun', 'string');
 
     const orderArr = sourceOrder
       .split(',')
@@ -235,7 +235,7 @@ export class Envs {
 
     this.accessedEnvVars.set('SOURCE_ORDER', orderArr);
 
-    return orderArr.length > 0 ? orderArr : ['douban', '360', 'renren', 'hanjutv'];
+    return orderArr.length > 0 ? orderArr : ['douban', '360', 'renren', 'hanjutv', 'acfun'];
   }
 
   /**

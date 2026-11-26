@@ -38,6 +38,7 @@ import HongguoSource from './hongguo.js';
 import AnimekoSource from './animeko.js';
 import OtherSource from './other.js';
 import LocalSource from './local.js';
+import AcFunSource from './acfun.js';
 
 // 源注册表：每条记录描述一个源的调度身份与实例化方式。
 // 字段说明：
@@ -90,6 +91,7 @@ const SOURCE_REGISTRY = [
   { key: 'animeko',   logName: '',        factory: () => new AnimekoSource(), deps: [], displayName: 'Animeko' },
   { key: 'other',     logName: '',        factory: () => new OtherSource(), deps: [], displayName: '第三方弹幕服务器' },
   { key: 'local',     logName: 'local',   factory: () => new LocalSource(), deps: [], displayName: '本地弹幕' },
+  { key: 'acfun',     logName: '',        factory: () => new AcFunSource(), deps: [], displayName: 'AcFun（A站）' },
 ];
 
 // ---- 实例缓存（按 key 索引）----
