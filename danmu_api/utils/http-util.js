@@ -594,6 +594,46 @@ export async function getPageTitle(url) {
   }
 }
 
+// EdgeOne Node Functions limits each response body to 6 MB. Compress JSON/text responses
+// when the client explicitly accepts gzip so large danmaku payloads stay below that limit.
+export function compressResponseForEdgeOne(response, request, deployPlatform) {
+  if (deployPlatform !== 'edgeone' || !response?.body || typeof CompressionStream === 'undefined') {
+    return response;
+  }
+
+  const acceptEncoding = request?.headers?.get?.('accept-encoding') || '';
+  const acceptsGzip = acceptEncoding.split(',').some((entry) => {
+    const [encoding, ...parameters] = entry.trim().split(';');
+    return encoding.toLowerCase() === 'gzip'
+      && !parameters.some((parameter) => /^q\s*=\s*0(?:\.0*)?$/i.test(parameter.trim()));
+  });
+  if (!acceptsGzip || response.headers.has('content-encoding')) return response;
+
+  const contentType = response.headers.get('content-type') || '';
+  if (!/(?:application\/json|application\/xml|text\/)/i.test(contentType)) return response;
+
+  try {
+    const headers = new Headers(response.headers);
+    headers.delete('content-length');
+    headers.set('content-encoding', 'gzip');
+    const vary = headers.get('vary');
+    if (!vary) {
+      headers.set('vary', 'Accept-Encoding');
+    } else if (!vary.split(',').some((value) => value.trim().toLowerCase() === 'accept-encoding')) {
+      headers.set('vary', `${vary}, Accept-Encoding`);
+    }
+
+    return new Response(response.body.pipeThrough(new CompressionStream('gzip')), {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  } catch {
+    // Compression is an optimization; preserve the original response if the runtime cannot stream gzip.
+    return response;
+  }
+}
+
 export function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
