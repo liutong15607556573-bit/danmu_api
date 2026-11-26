@@ -12,7 +12,7 @@ import {
 } from "../utils/cache-util.js";
 import { resolveFavoriteForSearchKeyword } from "../utils/favorite-util.js";
 import { formatDanmuResponse, convertToDanmakuJson } from "../utils/danmu-util.js";
-import { resolveOffsetRule, applyOffset, stripLinkOffset, offsetDuration } from "../utils/offset-util.js";
+import { resolveOffsetRule, applyOffset, stripLinkOffset, offsetDuration, getMaxDanmuTime } from "../utils/offset-util.js";
 import { filterMappingQualifierCandidates, filterMappingTargetCandidates, resolveAutoMatchMapping } from "../utils/auto-match-mapping-util.js";
 import { ensureRemoteAutoMatchMapping, getEffectiveAutoMatchMappingRules } from "../utils/auto-match-mapping-url-util.js";
 import { 
@@ -72,16 +72,6 @@ function countRawCandidates(searchResult) {
     total += (item && Array.isArray(item.list)) ? item.list.length : 1;
   }
   return total;
-}
-
-// 逐条计算弹幕最大时间，避免 Math.max(...array) 在大弹幕列表上触发参数数量限制
-function getMaxDanmuTime(danmus) {
-  let maxTime = 0;
-  for (const danmu of danmus) {
-    const time = parseFloat(String(danmu.p).split(',')[0]) || 0;
-    if (time > maxTime) maxTime = time;
-  }
-  return maxTime;
 }
 
 function resolveCommentCacheKey(url) {
