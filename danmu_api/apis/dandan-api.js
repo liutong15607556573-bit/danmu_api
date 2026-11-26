@@ -119,6 +119,18 @@ function buildDanmuResponse(data, videoDuration = null) {
   return { videoDuration, ...data };
 }
 
+function formatSegmentListResponse(segmentResult) {
+  if (segmentResult && typeof segmentResult === 'object' && Array.isArray(segmentResult.segmentList)) {
+    return jsonResponse(segmentResult);
+  }
+  return jsonResponse({
+    errorCode: 501,
+    success: false,
+    errorMessage: "This source does not support segmented comment responses",
+    segmentList: [],
+  }, 501);
+}
+
 function extractDurationFromSegments(segmentResult) {
   const explicitDuration = normalizeDurationValue(segmentResult?.duration || segmentResult?.videoDuration || 0);
   if (explicitDuration > 0) return explicitDuration;
@@ -3518,7 +3530,7 @@ export async function getComment(path, queryFormat, segmentFlag, clientIp, inclu
   // 检查弹幕缓存
   markStepActive('弹幕·缓存查询');
   const cacheKey = resolveCommentCacheKey(url);
-  const cachedComments = getCommentCache(cacheKey);
+  const cachedComments = segmentFlag ? null : getCommentCache(cacheKey);
   if (cachedComments !== null) {
     let videoDuration = shouldAttachDuration ? await resolveMergedDuration(url) : null;
     if (shouldAttachDuration) {
@@ -3555,7 +3567,7 @@ export async function getComment(path, queryFormat, segmentFlag, clientIp, inclu
 
   log("info", "[system] [LogVar-API] 开始从本地请求弹幕...", url);
   let danmus = [];
-  const durationPromise = shouldAttachDuration ? resolveMergedDuration(url) : null;
+  const durationPromise = shouldAttachDuration && !segmentFlag ? resolveMergedDuration(url) : null;
 
   // 提取单链接偏移值（@秒数 / @%百分比）
   const linkMeta = stripLinkOffset(url);
@@ -3564,6 +3576,10 @@ export async function getComment(path, queryFormat, segmentFlag, clientIp, inclu
   const cleanUrl = linkMeta.cleanUrl;
   if (singleUrlOffset !== 0) {
     log("info", `[system] [LogVar-API] 检测到链接${singleUrlOffsetPercent ? '百分比' : ''}偏移: ${singleUrlOffset}s`);
+  }
+
+  if (segmentFlag && url.includes(MERGE_DELIMITER)) {
+    return formatSegmentListResponse(null);
   }
 
   if (url && url.includes(MERGE_DELIMITER)) {
@@ -3625,6 +3641,10 @@ export async function getComment(path, queryFormat, segmentFlag, clientIp, inclu
     if ((!danmus || danmus.length === 0) && urlPattern.test(url)) {
       danmus = await sourceLogContext.run('other', () => otherSource.getComments(url, "other_server", segmentFlag));
     }
+  }
+
+  if (segmentFlag) {
+    return formatSegmentListResponse(danmus);
   }
 
   // 本步骤内部完成了屏蔽词、同时间点去重等处理，取各配置记录中最早登记的弹幕条数作为处理前数量，
@@ -3856,7 +3876,7 @@ export async function getCommentByUrl(videoUrl, queryFormat, segmentFlag, includ
     // 检查弹幕缓存
     markStepActive('弹幕·缓存查询');
     const cacheKey = resolveCommentCacheKey(url);
-    const cachedComments = getCommentCache(cacheKey);
+    const cachedComments = segmentFlag ? null : getCommentCache(cacheKey);
     if (cachedComments !== null) {
       const responseData = buildDanmuResponse({
         errorCode: 0,
@@ -3890,7 +3910,7 @@ export async function getCommentByUrl(videoUrl, queryFormat, segmentFlag, includ
 
     log("info", "[system] [LogVar-API] 开始从本地请求弹幕...", url);
     let danmus = [];
-    const durationPromise = shouldAttachDuration ? resolveMergedDuration(url) : null;
+    const durationPromise = shouldAttachDuration && !segmentFlag ? resolveMergedDuration(url) : null;
 
     // 提取单链接偏移值（@秒数 / @%百分比）
     const linkMeta = stripLinkOffset(url);
@@ -3937,6 +3957,10 @@ export async function getCommentByUrl(videoUrl, queryFormat, segmentFlag, includ
       if (urlPattern.test(cleanUrl)) {
         danmus = await sourceLogContext.run('other', () => otherSource.getComments(cleanUrl, "other_server", segmentFlag));
       }
+    }
+
+    if (segmentFlag) {
+      return formatSegmentListResponse(danmus);
     }
 
     log("info", `[system] [LogVar-API] Successfully fetched ${danmus.length} comments from URL`);
