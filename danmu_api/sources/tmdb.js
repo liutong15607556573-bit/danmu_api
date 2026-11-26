@@ -82,7 +82,7 @@ export default class TmdbSource extends BaseSource {
   async search(keyword) {
     try {
       const normalizeQuery = value => normalizeTitleForMatch(
-        String(value || '').replace(/[（(](?:19|20)\\d{2}[)）]$/, '').trim()
+        String(value || '').replace(/[（(](?:19|20)\d{2}[)）]$/, '').trim()
       ).toLowerCase();
       const queryKey = normalizeQuery(keyword);
       if (!queryKey) return [];
@@ -104,7 +104,7 @@ export default class TmdbSource extends BaseSource {
       }
 
       const candidates = [...resultMap.values()];
-      const requestedYear = String(keyword).match(/[（(]?((?:19|20)\\d{2})[)）]?\\s*$/)?.[1] || "";
+      const requestedYear = String(keyword).match(/[（(]?((?:19|20)\d{2})[)）]?\\s*$/)?.[1] || "";
       const yearMatches = item => {
         if (!requestedYear) return true;
         const date = item.release_date || item.first_air_date || "";
@@ -126,9 +126,9 @@ export default class TmdbSource extends BaseSource {
       // 别名核验限制在搜索排名靠前的候选，避免无节制增加外部请求。
       const directMatches = candidates.filter(item => yearMatches(item) && hasTitle(item, []));
       const directIds = new Set(directMatches.map(item => `${item.media_type}:${item.id}`));
-      const aliasCandidates = candidates
+      const aliasCandidates = directMatches.length > 0 ? [] : candidates
         .filter(item => !directIds.has(`${item.media_type}:${item.id}`) && yearMatches(item))
-        .slice(0, 12);
+        .slice(0, 8);
       const aliasMatches = await Promise.all(aliasCandidates.map(async item => {
         try {
           const response = await getTmdbAlternativeTitles(item.media_type, item.id);
