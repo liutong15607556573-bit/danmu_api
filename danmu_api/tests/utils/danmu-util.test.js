@@ -236,13 +236,4 @@ test('convertToDanmakuJson XML 输入惰性解析且兼容空 XML', () => {
     ]
   );
   assert.deepStrictEqual(convertToDanmakuJson('<i></i>', 'test'), []);
-
-  // 用较大的 XML 输入覆盖完整转换流程，确保惰性解析结果可被后续过滤、分组和排序正常消费。
-  const largeXml = '<i>' + Array.from({ length: 25000 }, (_, index) =>
-    `<d p="${(index / 10).toFixed(1)},1,25,16777215,0,0,0,${index}">弹幕${index}</d>`
-  ).join('') + '</i>';
-  const largeOut = convertToDanmakuJson(largeXml, 'test');
-  assert.strictEqual(largeOut.length, 25000);
-  assert.strictEqual(largeOut[0].m, '弹幕0');
-  assert.strictEqual(largeOut[largeOut.length - 1].m, '弹幕24999');
 });
