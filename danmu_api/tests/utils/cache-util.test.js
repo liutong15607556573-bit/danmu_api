@@ -1,14 +1,13 @@
-// 缓存与 ID 解析工具：弹幕缓存 TTL/最小条数、动漫与剧集上下文解析、
-// 偏好记录（含旧结构兼容）、IP 限流历史清理与缓存容量兜底。全部离线，只操作 Globals 内存状态。
+// 缓存与 ID 解析工具：弹幕缓存 TTL/最小条数、动漫与剧集上下文解析、// 偏好记录（含旧结构兼容）、IP 限流历史清理与缓存容量兜底。全部离线，只操作 Globals 内存状态。
 
 import test from 'node:test';
 import assert from 'node:assert';
 import { Globals } from '../../configs/globals.js';
 import {
   resolveAnimeById, resolveAnimeByIdFromDetailStore, resolveEpisodeContextById,
-  isCommentCacheValid, getCommentCache, setCommentCache, findAnimeIdByCommentId, findTitleById,
+  isCommentCacheValid, getCommentCache, setCommentCache, getSearchCache, setSearchCache, findAnimeIdByCommentId, findTitleById,
   setPreferByAnimeId, getPreferAnimeId, hasLegacySeasonPreference, setPreferForTitle, storeAnimeIdsToMap,
-  cleanupExpiredIPs, removeEarliestAnime, removeEpisodeByUrl, getEpisodeIdFloor,
+  cleanupExpiredIPs, removeEarliestAnime, removeEpisodeByUrl, getEpisodeIdFloor, setLastSearch, getLastSearch,
   canPersistCacheKey, mergeAddAnimeError, queryCacheKeys, cacheSnapshotValue, restoreQueryCache,
 } from '../../utils/cache-util.js';
 import { createTrace, getInterfaceDetail, replaceTraceRecords, getTraceRecords, clearTraceRecords } from '../../utils/pipeline-trace.js';
@@ -63,9 +62,12 @@ test('cache-util 弹幕缓存：命中返回评论、低于最小条数或过期
 
 test('cache-util 弹幕缓存：容量兜底按插入顺序淘汰最早条目', () => {
   reset({ COMMENT_CACHE_MINUTES: '30', COMMENT_CACHE_MIN_COUNT: '0' });
-  for (let i = 0; i < 501; i++) setCommentCache(`https://v.qq.com/x/cover/${i}.html`, [{ m: String(i) }]);
+  for (let i = 0; i < 500; i++) setCommentCache(`https://v.qq.com/x/cover/${i}.html`, [{ m: String(i) }]);
+  assert.deepStrictEqual(getCommentCache('https://v.qq.com/x/cover/0.html'), [{ m: '0' }], '命中缓存后刷新最近使用顺序');
+  setCommentCache('https://v.qq.com/x/cover/500.html', [{ m: '500' }]);
   assert.strictEqual(Globals.commentCache.size, 500, '超过 500 条后维持上限');
-  assert.strictEqual(Globals.commentCache.has('https://v.qq.com/x/cover/0.html'), false, '最早插入的条目被淘汰');
+  assert.strictEqual(Globals.commentCache.has('https://v.qq.com/x/cover/0.html'), true, '最近命中的旧条目保留');
+  assert.strictEqual(Globals.commentCache.has('https://v.qq.com/x/cover/1.html'), false, '最久未使用的条目被淘汰');
   assert.strictEqual(Globals.commentCache.has('https://v.qq.com/x/cover/500.html'), true, '最新条目保留');
 });
 
@@ -362,4 +364,26 @@ test('restoreQueryCache 请求记录先去重后截断到上限', async () => {
   assert.equal(Globals.reqRecords[0].requestId, '1005');
   assert.equal(Globals.reqRecords.at(-1).requestId, '1104');
   assert.equal(Globals.todayReqNum, 250, '今日请求累计数不随记录窗口回算');
+});
+
+
+test('cache-util 搜索缓存命中后刷新 LRU 顺序', () => {
+  reset({ SEARCH_CACHE_MINUTES: '30' });
+  for (let i = 0; i < 500; i++) {
+    Globals.searchCache.set(`keyword-${i}`, { results: [i], details: [], timestamp: Date.now() });
+  }
+  assert.deepStrictEqual(getSearchCache('keyword-0'), [0], '命中搜索缓存');
+  setSearchCache('keyword-500', [500]);
+  assert.strictEqual(Globals.searchCache.size, 500);
+  assert.strictEqual(Globals.searchCache.has('keyword-0'), true, '最近命中的旧缓存保留');
+  assert.strictEqual(Globals.searchCache.has('keyword-1'), false, '最久未使用的搜索缓存淘汰');
+  assert.strictEqual(Globals.searchCache.has('keyword-500'), true);
+});
+
+
+test('cache-util lastSearchMap 在高基数 IP 下保持硬容量上限', () => {
+  reset();
+  for (let i = 0; i < 205; i++) setLastSearch(`ip-${i}`, { keyword: String(i) });
+  assert.strictEqual(getLastSearch('ip-0'), undefined, '最早记录在超过容量后被淘汰');
+  assert.strictEqual(getLastSearch('ip-204').keyword, '204', '最新记录保留');
 });
