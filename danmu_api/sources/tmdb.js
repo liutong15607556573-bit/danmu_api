@@ -3,6 +3,7 @@ import { log } from "../utils/log-util.js";
 import { getDoubanInfoByImdbId } from "../utils/douban-util.js";
 import { getTmdbExternalIds, searchTmdbTitles} from "../utils/tmdb-util.js";
 import { getImdbepisodes, getImdbSeasons } from "../utils/imdb-util.js";
+import { normalizeTitleForMatch } from "../utils/common-util.js";
 
 // =====================
 // 获取TMDB源播放链接
@@ -85,17 +86,38 @@ export default class TmdbSource extends BaseSource {
 
       let tmpAnimes = [];
 
+      // 同时匹配 TMDB 的本地化标题与原始标题。欧美影片常见情况是：
+      // Yamby/文件名使用英文原名，而 TMDB zh-CN 搜索返回中文译名；
+      // 旧逻辑只比较 name/title，导致这些影片在进入豆瓣与平台匹配前被全部过滤。
+      const normalizeQuery = value => normalizeTitleForMatch(
+        String(value || '').replace(/[（(](?:19|20)\d{2}[)）]$/, '').trim()
+      ).toLowerCase();
+      const queryKey = normalizeQuery(keyword);
       let tmdbItems = [];
-      if (data?.results?.length > 0) {
-        tmdbItems = data.results.filter(item => (item.name || item.title) === keyword);
+      if (queryKey && data?.results?.length > 0) {
+        tmdbItems = data.results.filter(item => {
+          if (!['movie', 'tv'].includes(item.media_type)) return false;
+          const localizedTitle = item.name || item.title || '';
+          const originalTitle = item.original_name || item.original_title || '';
+          return [localizedTitle, originalTitle].some(title => {
+            const titleKey = normalizeQuery(title);
+            return titleKey && titleKey === queryKey;
+          });
+        });
       }
 
-      log("info", `[tmdb] tmdb items.length: ${tmdbItems.length}`);
+      log("info", `[tmdb] tmdb items.length: ${tmdbItems.length} (localized/original exact title match)`);
 
       const doubanPromises = tmdbItems.map(async (tmdbItem) => {
         try {
-          const doubanIds = await this.getDoubanIdByTmdbId(tmdbItem.media_type, tmdbItem.id);
-          return doubanIds;
+          const mediaType = tmdbItem.media_type || (tmdbItem.name ? 'tv' : 'movie');
+          const doubanIds = await this.getDoubanIdByTmdbId(mediaType, tmdbItem.id);
+          // DoubanSource 会再次按 queryTitle 过滤候选。这里保留已经由 TMDB 原名/译名
+          // 精确确认的检索词作为候选标题，避免英文原名被豆瓣中文译名二次过滤。
+          return doubanIds.map(item => ({
+            ...item,
+            target: { ...(item.target || {}), title: keyword }
+          }));
         } catch (error) {
           log("error", `[tmdb] 获取 TMDB ID ${tmdbItem.id} 的豆瓣 ID 失败，继续处理其他条目:`, error);
           return []; // 失败返回空数组，不中断合并
