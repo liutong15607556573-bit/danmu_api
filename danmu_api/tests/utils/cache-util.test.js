@@ -5,7 +5,7 @@ import assert from 'node:assert';
 import { Globals } from '../../configs/globals.js';
 import {
   resolveAnimeById, resolveAnimeByIdFromDetailStore, resolveEpisodeContextById,
-  isCommentCacheValid, getCommentCache, setCommentCache, findAnimeIdByCommentId, findTitleById,
+  isCommentCacheValid, getCommentCache, setCommentCache, getSearchCache, setSearchCache, findAnimeIdByCommentId, findTitleById,
   setPreferByAnimeId, getPreferAnimeId, hasLegacySeasonPreference, setPreferForTitle, storeAnimeIdsToMap,
   cleanupExpiredIPs, removeEarliestAnime, removeEpisodeByUrl, getEpisodeIdFloor, setLastSearch, getLastSearch,
   canPersistCacheKey, mergeAddAnimeError, queryCacheKeys, cacheSnapshotValue, restoreQueryCache,
@@ -372,7 +372,12 @@ test('cache-util 搜索缓存命中后刷新 LRU 顺序', () => {
   for (let i = 0; i < 500; i++) {
     Globals.searchCache.set(`keyword-${i}`, { results: [i], details: [], timestamp: Date.now() });
   }
-  const { getSearchCache, setSearchCache } = awaitlessCacheExports;
+  assert.deepStrictEqual(getSearchCache('keyword-0'), [0], '命中搜索缓存');
+  setSearchCache('keyword-500', [500]);
+  assert.strictEqual(Globals.searchCache.size, 500);
+  assert.strictEqual(Globals.searchCache.has('keyword-0'), true, '最近命中的旧缓存保留');
+  assert.strictEqual(Globals.searchCache.has('keyword-1'), false, '最久未使用的搜索缓存淘汰');
+  assert.strictEqual(Globals.searchCache.has('keyword-500'), true);
 });
 
 
