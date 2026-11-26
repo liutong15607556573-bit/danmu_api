@@ -16,6 +16,29 @@ export function runWithHttpCache(fn) {
   return httpCacheContext.run(new Map(), fn);
 }
 
+// 仅当 URL 与影响上游响应/解析结果的请求选项一致时才复用响应。
+// 同一搜索中不同源可能访问相同 URL，但携带不同 Cookie、UA 或解析模式，不能串用结果。
+function getHttpCacheKey(url, options = {}) {
+  const headers = Object.entries(options.headers || {})
+    .map(([name, value]) => [String(name).toLowerCase(), String(value)])
+    .sort(([aName, aValue], [bName, bValue]) =>
+      aName.localeCompare(bName) || aValue.localeCompare(bValue)
+    );
+  const validStatusCodes = Array.isArray(options.validStatusCodes)
+    ? [...options.validStatusCodes].sort((a, b) => String(a).localeCompare(String(b)))
+    : [];
+
+  return JSON.stringify([
+    String(url),
+    headers,
+    options.allow_redirects !== false,
+    options.base64Data === true,
+    options.zlibMode === true,
+    options.encoding ?? null,
+    validStatusCodes,
+  ]);
+}
+
 // 源调度键名（sourceOrderArr）到日志标签规范名称的映射
 // sourceOrderArr 中部分键名与对应源文件的标签命名不一致（如 360→360kan, imgo→mango）
 // 此映射表为本地 fallback，与 sources/registry.js 的 logName 字段保持一致。
@@ -99,8 +122,9 @@ export async function httpGet(url, options = {}) {
   const requestHttpCache = httpCacheContext.getStore();
   // 重试调用传入 bypassCache 时跳过复用，避免复用首次已缓存的失败响应而令重试被静默吞掉
   const bypassCache = options.bypassCache === true;
-  if (requestHttpCache && !bypassCache && requestHttpCache.has(url)) {
-    const cached = requestHttpCache.get(url);
+  const cacheKey = getHttpCacheKey(url, options);
+  if (requestHttpCache && !bypassCache && requestHttpCache.has(cacheKey)) {
+    const cached = requestHttpCache.get(cacheKey);
     log("info", `[${sourceLogContext.getStore() || 'system'}] [请求复用] 复用请求内已缓存的 HTTP 响应, 跳过重复请求: ${url}`);
     return { data: structuredClone(cached.data), status: cached.status, headers: { ...cached.headers } };
   }
@@ -274,7 +298,7 @@ export async function httpGet(url, options = {}) {
 
       // 将本次响应记入请求内复用缓存, 供同请求内相同 URL 的后续请求直接复用
       if (requestHttpCache && !bypassCache) {
-        requestHttpCache.set(url, { data: structuredClone(parsedData), status: response.status, headers });
+        requestHttpCache.set(cacheKey, { data: structuredClone(parsedData), status: response.status, headers });
       }
 
       // 模拟 iOS 环境：返回 { data: ... } 结构
