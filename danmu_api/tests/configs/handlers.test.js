@@ -781,3 +781,24 @@ test('EdgeoneHandler deploy should POST CreatePagesDeployment and return false o
     assert.equal(await handler.deploy(), false);
   });
 });
+
+
+test('EdgeoneHandler should not report success or mutate local env when EdgeOne returns a non-zero API Code', async () => {
+  Globals.init(deployEnv({ DANMU_LIMIT: 3 }));
+  const handler = new EdgeoneHandler();
+
+  await withMockFetch(async () => mockJsonResponse({ Code: 1, Message: 'invalid token' }), async () => {
+    assert.equal(await handler.setEnv('DANMU_LIMIT', 5), false);
+    assert.equal(Globals.getConfig().envs.danmuLimit, 3, 'failed remote update must not change local config');
+  });
+
+  await withMockFetch(async () => mockJsonResponse({ Code: 1, Message: 'invalid token' }), async () => {
+    assert.equal(await handler.delEnv('DANMU_LIMIT'), false);
+    assert.equal(Globals.getConfig().envs.danmuLimit, 3, 'failed remote deletion must not change local config');
+  });
+
+  await withMockFetch(async () => mockJsonResponse({ Code: 1, Message: 'invalid token' }), async () => {
+    assert.equal(await handler.checkParams('acc', 'proj', 'bad-token'), false,
+      'HTTP 200 with a non-zero EdgeOne API Code is still a credential failure');
+  });
+});
