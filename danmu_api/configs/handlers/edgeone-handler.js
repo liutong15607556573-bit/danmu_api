@@ -46,7 +46,11 @@ export class EdgeoneHandler extends BaseHandler {
         ]
       };
 
-      await this._httpPost(globals.deployPlatformToken, data);
+      const res = await this._httpPost(globals.deployPlatformToken, data);
+      if (res?.data?.Code !== 0) {
+        log("error", '[system] [server] ✗ Failed to set environment variable:', JSON.stringify(res?.data));
+        return false;
+      }
 
       return this.updateLocalEnv(key, value);
     } catch (error) {
@@ -68,7 +72,11 @@ export class EdgeoneHandler extends BaseHandler {
         EnvVars: [key]
       };
 
-      await this._httpPost(globals.deployPlatformToken, data);
+      const res = await this._httpPost(globals.deployPlatformToken, data);
+      if (res?.data?.Code !== 0) {
+        log("error", '[system] [server] ✗ Failed to delete environment variable:', JSON.stringify(res?.data));
+        return false;
+      }
 
       return this.delLocalEnv(key);
     } catch (error) {
@@ -78,8 +86,9 @@ export class EdgeoneHandler extends BaseHandler {
 
   async checkParams(accountId, projectId, token) {
     try {
-      await this._getAllEnvs(projectId, token);
-      return true;
+      // EdgeOne may report authentication/project errors in a successful HTTP 200
+      // response. Treat its non-zero Code as invalid credentials instead of success.
+      return (await this._getAllEnvs(projectId, token)) !== null;
     } catch (error) {
       log("error", '[system] [server] checkParams failed! accountId, projectId or token is not valid:', error.message);
       return false;
