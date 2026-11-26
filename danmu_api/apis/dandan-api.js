@@ -12,7 +12,7 @@ import {
 } from "../utils/cache-util.js";
 import { resolveFavoriteForSearchKeyword } from "../utils/favorite-util.js";
 import { formatDanmuResponse, convertToDanmakuJson } from "../utils/danmu-util.js";
-import { resolveOffsetRule, applyOffset, stripLinkOffset, offsetDuration } from "../utils/offset-util.js";
+import { resolveOffsetRule, applyOffset, stripLinkOffset, offsetDuration, getMaxDanmuTime } from "../utils/offset-util.js";
 import { filterMappingQualifierCandidates, filterMappingTargetCandidates, resolveAutoMatchMapping } from "../utils/auto-match-mapping-util.js";
 import { ensureRemoteAutoMatchMapping, getEffectiveAutoMatchMappingRules } from "../utils/auto-match-mapping-url-util.js";
 import { 
@@ -79,6 +79,18 @@ function resolveCommentCacheKey(url) {
   if (!globals.hongguoMergeAllEpisodes) return url;
   const containsHongguo = value.includes("hongguo:") || /https?:\/\/(?:www\.)?hongguoduanju\.com(?::\d+)?\/player\//i.test(value);
   return containsHongguo ? `${value}::hongguo-all-episodes` : url;
+}
+
+// 分段缓存必须与整集缓存隔离，并按平台和时间范围区分。
+export function resolveSegmentCommentCacheKey(segment) {
+  const url = String(segment?.url || "").trim();
+  const platform = String(segment?.type || "");
+  const rawStart = segment?.segment_start;
+  const rawEnd = segment?.segment_end;
+  const start = rawStart !== undefined && rawStart !== null && Number.isFinite(Number(rawStart)) ? Number(rawStart) : null;
+  const end = rawEnd !== undefined && rawEnd !== null && Number.isFinite(Number(rawEnd)) ? Number(rawEnd) : null;
+  const rangeKey = JSON.stringify([platform, start, end]);
+  return resolveCommentCacheKey(`${url}::segment:${rangeKey}`);
 }
 
 function normalizeDurationValue(rawValue) {
@@ -3328,7 +3340,7 @@ async function fetchMergedComments(url, animeTitle, commentId) {
             // 应用手动偏移值
             if (meta.manualOffset && formatted && Array.isArray(formatted)) {
               if (meta.manualOffsetPercent) {
-                const maxTime = Math.max(...formatted.map(d => parseFloat(String(d.p).split(',')[0]) || 0), 0);
+                const maxTime = getMaxDanmuTime(formatted);
                 formatted = applyOffset(formatted, meta.manualOffset, { usePercent: true, videoDuration: maxTime || 1 });
                 log("info", `[${sourceLogName}] 应用百分比偏移 ${meta.manualOffset}s (时长=${maxTime}s)`);
               } else {
@@ -3627,7 +3639,7 @@ export async function getComment(path, queryFormat, segmentFlag, clientIp, inclu
   // 单链接偏移值应用（合并链接已在 fetchMergedComments 中按来源分别应用，此处仅处理单链接）
   if (!(url && url.includes(MERGE_DELIMITER)) && singleUrlOffset !== 0 && danmus && Array.isArray(danmus) && danmus.length > 0) {
     if (singleUrlOffsetPercent) {
-      const maxTime = Math.max(...danmus.map(d => parseFloat(String(d.p).split(',')[0]) || 0), 0);
+      const maxTime = getMaxDanmuTime(danmus);
       danmus = applyOffset(danmus, singleUrlOffset, { usePercent: true, videoDuration: maxTime || 1 });
       log("info", `[system] [LogVar-API] 应用链接百分比偏移 ${singleUrlOffset}s (时长=${maxTime}s)`);
     } else {
@@ -3939,7 +3951,7 @@ export async function getCommentByUrl(videoUrl, queryFormat, segmentFlag, includ
     // 单链接偏移值应用
     if (singleUrlOffset !== 0 && danmus && Array.isArray(danmus) && danmus.length > 0) {
       if (singleUrlOffsetPercent) {
-        const maxTime = Math.max(...danmus.map(d => parseFloat(String(d.p).split(',')[0]) || 0), 0);
+        const maxTime = getMaxDanmuTime(danmus);
         danmus = applyOffset(danmus, singleUrlOffset, { usePercent: true, videoDuration: maxTime || 1 });
         log("info", `[system] [LogVar-API] 应用链接百分比偏移 ${singleUrlOffset}s (时长=${maxTime}s)`);
       } else {
@@ -4017,7 +4029,7 @@ export async function getSegmentComment(segment, queryFormat) {
 
     // 检查弹幕缓存
     markStepActive('分段弹幕·缓存查询');
-    const cacheKey = resolveCommentCacheKey(url);
+    const cacheKey = resolveSegmentCommentCacheKey({ ...segment, url });
     const cachedComments = getCommentCache(cacheKey);
     if (cachedComments !== null) {
       const responseData = {

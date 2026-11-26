@@ -1,6 +1,21 @@
 import { normalizeTitleForMatch } from './common-util.js';
 import { platformKey } from './platform-util.js';
 
+/**
+ * 逐条计算弹幕最大时间，避免 Math.max(...array) 在大弹幕列表上触发参数数量限制。
+ * 保留原有 p 字段解析规则，供百分比偏移计算使用。
+ * @param {Array} danmus 弹幕数组
+ * @returns {number} 最大弹幕时间（秒）
+ */
+export function getMaxDanmuTime(danmus) {
+  let maxTime = 0;
+  for (const danmu of danmus) {
+    const time = parseFloat(String(danmu.p).split(',')[0]) || 0;
+    if (time > maxTime) maxTime = time;
+  }
+  return maxTime;
+}
+
 // 弹幕时间偏移独立模块
 // 职责：解析链接 @偏移 与偏移规则、匹配偏移量、应用偏移到弹幕、按偏移换算时间轴时长
 

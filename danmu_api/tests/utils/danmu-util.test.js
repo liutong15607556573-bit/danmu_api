@@ -221,3 +221,47 @@ test('danmu convertToDanmakuJson 多源且按分钟去重时同分钟内容合�
   assert.strictEqual(out.length, 1, '开启分钟分组后同一分钟内的相同内容应合并');
   assert.strictEqual(out[0].p, '10.00,1,16777215,[bilibili＆dandan]', '合并后带上两个来源标签');
 });
+
+
+test('convertToDanmakuJson XML 输入惰性解析且兼容空 XML', () => {
+  Globals.init({ GROUP_MINUTE: '0', DANMU_LIMIT: '0', CONVERT_COLOR: 'default', BLOCKED_WORDS: '' });
+  const xml = '<i><d p="1,1,25,16777215,0,0,0,1">第一条</d><d p="2.5,1,25,16777215,0,0,0,2">第二条</d></i>';
+  const out = convertToDanmakuJson(xml, 'test');
+
+  assert.deepStrictEqual(
+    out.map(d => ({ p: d.p, m: d.m, cid: d.cid, t: d.t })),
+    [
+      { p: '1.00,1,16777215,[test]', m: '第一条', cid: 1, t: 1 },
+      { p: '2.50,1,16777215,[test]', m: '第二条', cid: 2, t: 2.5 }
+    ]
+  );
+  assert.deepStrictEqual(convertToDanmakuJson('<i></i>', 'test'), []);
+});
+
+test('convertToDanmakuJson 大量 XML 弹幕完整转换', () => {
+  Globals.init({ GROUP_MINUTE: '0', DANMU_LIMIT: '0', CONVERT_COLOR: 'default', BLOCKED_WORDS: '' });
+  const count = 25000;
+  const largeXml = '<i>' + Array.from({ length: count }, (_, index) =>
+    `<d p="${(index / 10).toFixed(1)},1,25,16777215,0,0,0,${index}">弹幕${index}</d>`
+  ).join('') + '</i>';
+
+  const out = convertToDanmakuJson(largeXml, 'test');
+  assert.strictEqual(out.length, count);
+  assert.strictEqual(out[0].m, '弹幕0');
+  assert.strictEqual(out[out.length - 1].m, `弹幕${count - 1}`);
+});
+
+test('convertToDanmakuJson 大量 XML 弹幕保留时间与顺序', () => {
+  Globals.init({ GROUP_MINUTE: '0', DANMU_LIMIT: '0', CONVERT_COLOR: 'default', BLOCKED_WORDS: '' });
+  const count = 25000;
+  const xml = '<i>' + Array.from({ length: count }, (_, index) =>
+    `<d p="${(index / 10).toFixed(1)},1,25,16777215,0,0,0,${index}">顺序检查${index}</d>`
+  ).join('') + '</i>';
+
+  const out = convertToDanmakuJson(xml, 'test');
+  assert.strictEqual(out.length, count);
+  assert.strictEqual(out[0].p, '0.00,1,16777215,[test]');
+  assert.strictEqual(out[12500].p, '1250.00,1,16777215,[test]');
+  assert.strictEqual(out[count - 1].p, '2499.90,1,16777215,[test]');
+  assert.strictEqual(out[count - 1].m, '顺序检查24999');
+});

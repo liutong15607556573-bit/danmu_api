@@ -6,7 +6,7 @@ dotenv.config();
 
 import test from 'node:test';
 import assert from 'node:assert';
-import { extractTitleSeasonEpisode, buildSearchAnimeUrl, matchSeason, matchAniAndEp, fallbackMatchAniAndEp, filterSameEpisodeTitle, buildBangumiData, resolveEpisodeCount, applyEpisodeTitleFilter, filterEpisodesByTitle, withAvailableEpisodeCount, buildMatchScoring } from '../../apis/dandan-api.js';
+import { extractTitleSeasonEpisode, buildSearchAnimeUrl, matchSeason, matchAniAndEp, fallbackMatchAniAndEp, filterSameEpisodeTitle, buildBangumiData, resolveEpisodeCount, applyEpisodeTitleFilter, filterEpisodesByTitle, withAvailableEpisodeCount, buildMatchScoring, resolveSegmentCommentCacheKey } from '../../apis/dandan-api.js';
 import { getSearchCache, setSearchCache } from '../../utils/cache-util.js';
 import { addFavorite, removeFavorite, saveFavorites } from '../../utils/favorite-util.js';
 import { Globals, globals } from '../../configs/globals.js';
@@ -506,4 +506,19 @@ test('matchAniAndEp 剧集模式记录无匹配集数的候选', async () => {
   const candidate = result.candidates.find(item => item.stage === '无匹配集数');
   assert.ok(candidate, '无匹配集数的候选应带阶段出现');
   assert.equal(candidate.detail, '');
+});
+
+
+test('segment comment cache keys isolate full comments, platforms, and time ranges', () => {
+  const base = { type: 'dandan', url: 'episode-123', segment_start: 0, segment_end: 60 };
+  const sameRange = resolveSegmentCommentCacheKey({ ...base });
+  const nextRange = resolveSegmentCommentCacheKey({ ...base, segment_start: 60, segment_end: 120 });
+  const otherPlatform = resolveSegmentCommentCacheKey({ ...base, type: 'animeko' });
+  const noRange = resolveSegmentCommentCacheKey({ type: 'dandan', url: 'episode-123' });
+
+  assert.equal(resolveSegmentCommentCacheKey({ ...base }), sameRange, '相同分段应稳定命中同一缓存键');
+  assert.notEqual(sameRange, nextRange, '不同时间范围不能共用缓存');
+  assert.notEqual(sameRange, otherPlatform, '不同平台不能共用分段缓存');
+  assert.notEqual(sameRange, noRange, '缺少范围的请求不能误命中有范围的缓存');
+  assert.notEqual(sameRange, base.url, '分段缓存必须与普通整集 URL 缓存隔离');
 });
