@@ -38,7 +38,8 @@ export default class AcFunSource extends BaseSource {
         const title = String(item.title || item.emTitle || '').replace(/<[^>]*>/g, '').trim();
         const durationSeconds = this._durationSeconds(item.playDuration);
         // ctime 是 AcFun 投稿时间，不是电影上映年份；只从标题显式提取年份，避免错配。 
-        const year = extractYear(title);
+        const yearMatch = title.match(/(?:^|[\\s([（])((?:19|20)\\d{2})(?=$|[\\s)\\]）])/);
+        const year = yearMatch ? extractYear(`(${yearMatch[1]})`) : null;
         return {
           provider: 'acfun',
           mediaId: String(item.videoId || ''),
