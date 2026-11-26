@@ -221,3 +221,14 @@ test('danmu convertToDanmakuJson 多源且按分钟去重时同分钟内容合�
   assert.strictEqual(out.length, 1, '开启分钟分组后同一分钟内的相同内容应合并');
   assert.strictEqual(out[0].p, '10.00,1,16777215,[bilibili＆dandan]', '合并后带上两个来源标签');
 });
+
+
+test('convertToDanmakuJson XML 输入惰性解析且兼容空 XML', () => {
+  Globals.init({ GROUP_MINUTE: '0', DANMU_LIMIT: '0', CONVERT_COLOR: 'default', BLOCKED_WORDS: '' });
+  const xml = '<i><d p="1,1,25,16777215,0,0,0,1">第一条</d><d p="2.5,1,25,16777215,0,0,0,2">第二条</d></i>';
+  const out = convertToDanmakuJson(xml, 'test');
+
+  assert.deepStrictEqual(out.map(d => d.m), ['第一条', '第二条']);
+  assert.deepStrictEqual(out.map(d => d.t), [1, 2.5]);
+  assert.deepStrictEqual(convertToDanmakuJson('<i></i>', 'test'), []);
+});
