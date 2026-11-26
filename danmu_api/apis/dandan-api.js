@@ -74,6 +74,16 @@ function countRawCandidates(searchResult) {
   return total;
 }
 
+// 逐条计算弹幕最大时间，避免 Math.max(...array) 在大弹幕列表上触发参数数量限制
+function getMaxDanmuTime(danmus) {
+  let maxTime = 0;
+  for (const danmu of danmus) {
+    const time = parseFloat(String(danmu.p).split(',')[0]) || 0;
+    if (time > maxTime) maxTime = time;
+  }
+  return maxTime;
+}
+
 function resolveCommentCacheKey(url) {
   const value = String(url || "");
   if (!globals.hongguoMergeAllEpisodes) return url;
@@ -3328,7 +3338,7 @@ async function fetchMergedComments(url, animeTitle, commentId) {
             // 应用手动偏移值
             if (meta.manualOffset && formatted && Array.isArray(formatted)) {
               if (meta.manualOffsetPercent) {
-                const maxTime = Math.max(...formatted.map(d => parseFloat(String(d.p).split(',')[0]) || 0), 0);
+                const maxTime = getMaxDanmuTime(formatted);
                 formatted = applyOffset(formatted, meta.manualOffset, { usePercent: true, videoDuration: maxTime || 1 });
                 log("info", `[${sourceLogName}] 应用百分比偏移 ${meta.manualOffset}s (时长=${maxTime}s)`);
               } else {
@@ -3627,7 +3637,7 @@ export async function getComment(path, queryFormat, segmentFlag, clientIp, inclu
   // 单链接偏移值应用（合并链接已在 fetchMergedComments 中按来源分别应用，此处仅处理单链接）
   if (!(url && url.includes(MERGE_DELIMITER)) && singleUrlOffset !== 0 && danmus && Array.isArray(danmus) && danmus.length > 0) {
     if (singleUrlOffsetPercent) {
-      const maxTime = Math.max(...danmus.map(d => parseFloat(String(d.p).split(',')[0]) || 0), 0);
+      const maxTime = getMaxDanmuTime(danmus);
       danmus = applyOffset(danmus, singleUrlOffset, { usePercent: true, videoDuration: maxTime || 1 });
       log("info", `[system] [LogVar-API] 应用链接百分比偏移 ${singleUrlOffset}s (时长=${maxTime}s)`);
     } else {
@@ -3939,7 +3949,7 @@ export async function getCommentByUrl(videoUrl, queryFormat, segmentFlag, includ
     // 单链接偏移值应用
     if (singleUrlOffset !== 0 && danmus && Array.isArray(danmus) && danmus.length > 0) {
       if (singleUrlOffsetPercent) {
-        const maxTime = Math.max(...danmus.map(d => parseFloat(String(d.p).split(',')[0]) || 0), 0);
+        const maxTime = getMaxDanmuTime(danmus);
         danmus = applyOffset(danmus, singleUrlOffset, { usePercent: true, videoDuration: maxTime || 1 });
         log("info", `[system] [LogVar-API] 应用链接百分比偏移 ${singleUrlOffset}s (时长=${maxTime}s)`);
       } else {
