@@ -181,7 +181,7 @@ test('http-util httpGetWithStreamCheck 流式读取、嗅探回调与错误处�
 
 test('EdgeOne 大型 JSON 响应在客户端支持时使用 gzip 压缩', async () => {
   const payload = { count: 1200, comments: Array.from({ length: 1200 }, (_, i) => ({
-    p: `\${i},1,16777215,[dandan]`,
+    p: `${i},1,16777215,[dandan]`,
     m: '这是一条用于验证 EdgeOne 大型弹幕响应压缩的测试弹幕内容',
     cid: i + 1,
   })) };
