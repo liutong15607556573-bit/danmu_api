@@ -358,11 +358,20 @@ export function convertToDanmakuJson(contents, platform) {
   // 统一处理输入为数组
   let items = [];
   if (typeof contents === "string") {
-    // 处理 XML 字符串
-    items = [...contents.matchAll(/<d p="([^"]+)">([^<]+)<\/d>/g)].map(match => ({
-      p: match[1],
-      m: match[2]
-    }));
+    // 处理 XML 字符串：惰性遍历匹配结果，避免 matchAll 与 map 同时创建两份大数组
+    const matches = contents.matchAll(/<d p="([^"]+)">([^<]+)<\/d>/g);
+    const firstMatch = matches.next();
+    if (!firstMatch.done) {
+      items = (function* () {
+        let match = firstMatch.value;
+        do {
+          yield { p: match[1], m: match[2] };
+          const next = matches.next();
+          if (next.done) return;
+          match = next.value;
+        } while (true);
+      })();
+    }
   } else if (contents && Array.isArray(contents.danmuku)) {
     // 处理 danmuku 数组，映射为对象格式
     const typeMap = { right: 1, top: 4, bottom: 5 };
