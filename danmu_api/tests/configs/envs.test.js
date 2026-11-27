@@ -371,7 +371,7 @@ test('resolveSourceOrder 过滤非法源并回退默认顺序', () => {
     assert.deepStrictEqual(Envs.accessedEnvVars.get('SOURCE_ORDER'), []);
 
     initEnvs({});
-    assert.deepStrictEqual(Envs.resolveSourceOrder(), ['iqiyi', 'tencent', 'youku', 'douban', '360', 'renren', 'hanjutv', 'acfun', 'tmdb', 'aiyifan']);
+    assert.deepStrictEqual(Envs.resolveSourceOrder(), ['iqiyi', 'tencent', 'youku', 'douban', '360', 'renren', 'hanjutv', 'acfun', 'tmdb', '4k', 'aiyifan']);
   } finally {
     restoreProcessEnv(saved);
   }
@@ -751,7 +751,7 @@ test('Globals.init 基于 Envs 生成配置并区分 RAW_ENV_KEYS 与非 RAW 变
     assert.strictEqual(Globals.envs.colorPool, '#FF0000,#00FF00');
     assert.strictEqual(Globals.envs.token, '87654321');
     assert.deepStrictEqual(Globals.envs.platformOrderArr, [null]);
-    assert.deepStrictEqual(Globals.envs.sourceOrderArr, ['iqiyi', 'tencent', 'youku', 'douban', '360', 'renren', 'hanjutv', 'acfun', 'tmdb', 'aiyifan']);
+    assert.deepStrictEqual(Globals.envs.sourceOrderArr, ['iqiyi', 'tencent', 'youku', 'douban', '360', 'renren', 'hanjutv', 'acfun', 'tmdb', '4k', 'aiyifan']);
     assert.strictEqual(Globals.envs.episodeTitleFilter instanceof RegExp, true);
     assert.strictEqual(Globals.envs.animeTitleFilter, null);
     // Globals 快照来自 Envs 记账，敏感键以掩码形式出现在预览中
