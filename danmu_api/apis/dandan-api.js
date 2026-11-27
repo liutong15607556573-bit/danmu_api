@@ -1592,7 +1592,7 @@ function selectMovieEpisode(episodes, anime, platform, hasTitlePreference) {
   return episodes.find(ep => getPlatformMatchScore(extractEpisodeTitle(ep.episodeTitle), platform) > 0);
 }
 
-async function matchAniAndEpByAi(season, episode, year, searchData, title, req, dynamicPlatformOrder, preferAnimeId, detailStore, hasTitlePreference) {
+async function matchAniAndEpByAi(season, episode, year, searchData, title, req, dynamicPlatformOrder, preferAnimeId, detailStore, hasTitlePreference, strictPlatform = null) {
   const aiBaseUrl = globals.aiBaseUrl;
   const aiModel = globals.aiModel;
   const aiApiKey = globals.aiApiKey;
@@ -1685,7 +1685,7 @@ async function matchAniAndEpByAi(season, episode, year, searchData, title, req, 
     if (hasSeasonEpisode(season, episode)) {
         // 剧集模式逻辑
         const filteredTmpEpisodes = filterEpisodesByTitle(bangumiData.bangumi.episodes);
-        const options = { preferredPlatform, sourceFallback: hasTitlePreference ? animePlatform(selectedAnime) : null, ordinalOnly: hasTitlePreference, exactOnly: hasTitlePreference, includePeriod: season === 0, groups: searchData.seasonGroups?.get(selectedAnime) };
+        const options = { preferredPlatform, sourceFallback: strictPlatform ? animePlatform(selectedAnime) : (hasTitlePreference ? animePlatform(selectedAnime) : null), ordinalOnly: hasTitlePreference, exactOnly: hasTitlePreference, includePeriod: season === 0, groups: searchData.seasonGroups?.get(selectedAnime) };
         const filteredEpisodes = filterSameEpisodeTitle(filteredTmpEpisodes, options);
         
         log("info", "[system] [match] 过滤后的集标题", filteredEpisodes.map(episode => episode.episodeTitle));
@@ -1695,7 +1695,7 @@ async function matchAniAndEpByAi(season, episode, year, searchData, title, req, 
     } else {
         // 电影模式逻辑
         if (bangumiData.bangumi.episodes.length > 0) {
-          filteredEpisode = selectMovieEpisode(bangumiData.bangumi.episodes, selectedAnime, hasTitlePreference ? preferredPlatform : null, hasTitlePreference);
+          filteredEpisode = selectMovieEpisode(bangumiData.bangumi.episodes, selectedAnime, (strictPlatform || hasTitlePreference) ? preferredPlatform : null, hasTitlePreference);
         }
     }
 
@@ -2484,7 +2484,7 @@ export function buildSearchAnimeUrl(baseUrl, keyword, season, episode) {
   return searchUrl;
 }
 
-async function selectAnimeMatch({ season, episode, year, searchData, title, req, dynamicPlatformOrder, preferAnimeId, offsets, detailStore, preference }) {
+async function selectAnimeMatch({ season, episode, year, searchData, title, req, dynamicPlatformOrder, preferAnimeId, offsets, detailStore, preference, strictPlatform = null }) {
   const hasTitlePreference = Boolean(preference);
   let directData = searchData;
   let seasonIndexes;
@@ -2495,7 +2495,7 @@ async function selectAnimeMatch({ season, episode, year, searchData, title, req,
     directData.seasonGroups = seasonIndexes?.get(season)?.groupsByAnime;
   }
   const aiMatchResult = await matchAniAndEpByAi(
-    season, episode, year, directData, title, req, dynamicPlatformOrder, preferAnimeId, detailStore, hasTitlePreference
+    season, episode, year, directData, title, req, dynamicPlatformOrder, preferAnimeId, detailStore, hasTitlePreference, strictPlatform
   );
   if (aiMatchResult.resAnime && aiMatchResult.resEpisode) {
     // AI 直接给出结果，没有逐平台评分
@@ -2520,6 +2520,9 @@ async function selectAnimeMatch({ season, episode, year, searchData, title, req,
     }
   }
 
+  // A caller-supplied video source is a hard constraint: never use the cross-platform spillover fallback.
+  if (strictPlatform) return { resAnime: null, resEpisode: null, spilloverMatched: false, platformAttempts };
+
   const { resAnime, resEpisode, isSpillover } = await fallbackMatchAniAndEp(
     directData, req, season, episode, year, title, null, null, offsets, detailStore,
     preference && { seriesData: searchData, platforms: dynamicPlatformOrder, seasonIndexes, matchesSeries: preference.matchesSeries }
@@ -2527,8 +2530,10 @@ async function selectAnimeMatch({ season, episode, year, searchData, title, req,
   return { resAnime, resEpisode, spilloverMatched: isSpillover, platformAttempts };
 }
 
-async function executeMatchAttempt({ req, title, preference, season, episode, year, preferredPlatform, preferAnimeId, preferSource, offsets, mapping }) {
-  const dynamicPlatformOrder = createDynamicPlatformOrder(mapping?.targetPlatform, preferredPlatform, preference?.platform);
+async function executeMatchAttempt({ req, title, preference, season, episode, year, preferredPlatform, strictPlatform = null, preferAnimeId, preferSource, offsets, mapping }) {
+  const dynamicPlatformOrder = strictPlatform
+    ? [strictPlatform]
+    : createDynamicPlatformOrder(mapping?.targetPlatform, preferredPlatform, preference?.platform);
   const targetPlatform = dynamicPlatformOrder.length > 0 ? dynamicPlatformOrder[0] : null;
   const detailStore = new Map();
   const searchUrl = buildSearchAnimeUrl(req.url, title, season, episode);
@@ -2545,7 +2550,18 @@ async function executeMatchAttempt({ req, title, preference, season, episode, ye
     return { resAnime: null, resEpisode: null, spilloverMatched: false, title, season, episode, cacheWarning, candidateCount: 0 };
   }
 
-  const candidates = preference ? searchData.animes.filter(hasSeasonEpisode(season, episode) ? preference.matchesSeries : preference.matches) : searchData.animes;
+  const titleCandidates = preference ? searchData.animes.filter(hasSeasonEpisode(season, episode) ? preference.matchesSeries : preference.matches) : searchData.animes;
+  // In strict mode, keep only records whose own source identity or at least one episode link
+  // is explicitly tagged with the requested platform. This also supports aggregated sources
+  // (for example, 360) that contain per-episode platform labels.
+  const candidates = strictPlatform ? titleCandidates.filter(anime => {
+    const identityMatches = scoreAnimePlatform(anime, strictPlatform, null, false) > 0;
+    if (identityMatches) return true;
+    const detail = getBangumiDataForMatch(anime, detailStore);
+    return Boolean(detail?.success && detail.bangumi?.episodes?.some(ep =>
+      getPlatformMatchScore(extractEpisodeTitle(ep.episodeTitle), strictPlatform) > 0
+    ));
+  }) : titleCandidates;
   const targetCandidates = mapping ? filterMappingTargetCandidates(candidates, mapping) : candidates;
   if (targetCandidates.length === 0) {
     return { resAnime: null, resEpisode: null, spilloverMatched: false, title, season, episode, cacheWarning, candidateCount: 0 };
@@ -2580,7 +2596,8 @@ async function executeMatchAttempt({ req, title, preference, season, episode, ye
       dynamicPlatformOrder,
       preferAnimeId,
       offsets,
-      detailStore
+      detailStore,
+      strictPlatform
     });
     if (selected.resAnime && selected.resEpisode) {
       if (mapping && pass.label === 'qualified') {
@@ -2708,6 +2725,13 @@ export async function matchAnime(url, req, clientIp) {
     // 处理请求体中的数据
     // 假设请求体包含一个字段，比如 { query: "anime name" }
     const { fileName } = body;
+    const suppliedSourceName = body.sourceName ?? body.videoSourceName ?? body.videoSource ?? body.platformName ?? body.platform;
+    const strictPlatform = suppliedSourceName === undefined || suppliedSourceName === null || String(suppliedSourceName).trim() === ''
+      ? null
+      : parseFileName(`source@${String(suppliedSourceName).trim()}`).preferredPlatform;
+    if (suppliedSourceName !== undefined && suppliedSourceName !== null && String(suppliedSourceName).trim() !== '' && !strictPlatform) {
+      return jsonResponse({ errorCode: 400, success: false, errorMessage: `Unsupported video source: ${String(suppliedSourceName)}` }, 400);
+    }
     if (!fileName) {
       log("error", "[system] [match] Missing fileName parameter in request body");
       traceStep('匹配·参数校验', Date.now(), { status: 'fail', reason: '缺少 fileName 参数' });
@@ -2724,7 +2748,7 @@ export async function matchAnime(url, req, clientIp) {
     // 解析fileName，提取平台偏好
     const { cleanFileName, preferredPlatform } = parseFileName(fileName);
     log("info", `[system] [match] Processing anime match for query: ${fileName}`);
-    log("info", `[system] [match] Parsed cleanFileName: ${cleanFileName}, preferredPlatform: ${preferredPlatform}`);
+    log("info", `[system] [match] Parsed cleanFileName: ${cleanFileName}, preferredPlatform: ${preferredPlatform}, strictPlatform: ${strictPlatform || 'none'}`);
 
     const parsed = await extractTitleSeasonEpisode(cleanFileName);
     const originalTitle = prepareQueryTitle(parsed.title, true);
@@ -2814,6 +2838,7 @@ export async function matchAnime(url, req, clientIp) {
         episode: mapping.targetEpisode,
         year: mapping.targetYear,
         preferredPlatform,
+        strictPlatform,
         preferAnimeId: null,
         preferSource: null,
         offsets: null,
@@ -2840,6 +2865,7 @@ export async function matchAnime(url, req, clientIp) {
         episode: originalEpisode,
         year: originalYear,
         preferredPlatform,
+        strictPlatform,
         preferAnimeId,
         preferSource,
         offsets,
