@@ -11,39 +11,61 @@ permissions:
 jobs:
   live-probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - name: Probe real 4K playback page and its own danmaku endpoint
+      - name: Probe real 4K playback page and multiple episode endpoints
         env:
           PLAY_URL: https://www.4kvm.net/play/ch4s99p1u
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
-          const response = await fetch(process.env.PLAY_URL, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(20000) });
-          if (!response.ok) throw new Error('Playback page HTTP ' + response.status);
-          const html = await response.text();
-          const player = html.match(/<[^>]*data-danmaku-api-url=["']([^"']+)["'][^>]*data-danmaku-enabled=["']true["'][^>]*>/i)
-            || html.match(/<[^>]*data-danmaku-enabled=["']true["'][^>]*data-danmaku-api-url=["']([^"']+)["'][^>]*>/i);
-          const video = html.match(/id=["']player-error-message-detail["'][^>]*data-v-id=["'](\d+)["']/i)
-            || html.match(/data-v-id=["'](\d+)["'][^>]*id=["']player-error-message-detail["']/i);
-          const manager = html.match(/x-data=["']episodeManager\(\s*\d+\s*,\s*(\d+)\s*,/i);
-          const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || 'not found').replace(/\s+/g,' ').slice(0,120);
-          console.log('Playback page HTTP:', response.status);
-          console.log('Page title:', title);
-          if (!player || !video || !manager) throw new Error('Playback page metadata extraction failed');
-          const apiRoot = new URL(player[1], process.env.PLAY_URL);
-          if (apiRoot.hostname !== '4k.dmservce.org') throw new Error('Unexpected danmaku API host: ' + apiRoot.hostname);
-          const endpoint = apiRoot.toString().replace(/\/$/, '') + '/video/' + video[1] + '.' + manager[1];
-          console.log('Extracted video ID:', video[1]);
-          console.log('Extracted episode:', manager[1]);
-          console.log('Requesting page-derived endpoint:', endpoint);
-          const dmResponse = await fetch(endpoint, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json,*/*' }, signal: AbortSignal.timeout(20000) });
-          if (!dmResponse.ok) throw new Error('Danmaku API HTTP ' + dmResponse.status);
-          const payload = await dmResponse.json();
-          console.log('Danmaku API HTTP:', dmResponse.status);
-          console.log('API code:', payload.code);
-          console.log('Danmaku item count:', Array.isArray(payload.data) ? payload.data.length : 'NOT AN ARRAY');
-          console.log('Sample item:', JSON.stringify(payload.data?.[0] ?? null));
-          if (payload.code !== 0 || !Array.isArray(payload.data)) throw new Error('Danmaku API payload shape invalid');
-          console.log('LIVE PROBE PASSED: this playback page and its own episode endpoint work.');
+          const headers = { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html,application/json,*/*' };
+          const getText = async (url) => {
+            const r = await fetch(url, { headers, signal: AbortSignal.timeout(20000) });
+            if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + url);
+            return r.text();
+          };
+          const readMeta = (html, pageUrl) => {
+            const player = html.match(/<[^>]*data-danmaku-api-url=["']([^"']+)["'][^>]*data-danmaku-enabled=["']true["'][^>]*>/i)
+              || html.match(/<[^>]*data-danmaku-enabled=["']true["'][^>]*data-danmaku-api-url=["']([^"']+)["'][^>]*>/i);
+            const video = html.match(/id=["']player-error-message-detail["'][^>]*data-v-id=["'](\d+)["']/i)
+              || html.match(/data-v-id=["'](\d+)["'][^>]*id=["']player-error-message-detail["']/i);
+            const manager = html.match(/x-data=["']episodeManager\(\s*\d+\s*,\s*(\d+)\s*,/i);
+            if (!player || !video || !manager) throw new Error('Missing player metadata on ' + pageUrl);
+            const apiRoot = new URL(player[1], pageUrl);
+            if (apiRoot.hostname !== '4k.dmservce.org') throw new Error('Unexpected API host ' + apiRoot.hostname);
+            return { apiRoot: apiRoot.toString().replace(/\/$/, ''), videoId: video[1], episode: manager[1] };
+          };
+          const firstHtml = await getText(process.env.PLAY_URL);
+          console.log('Playback page:', (firstHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '').replace(/\s+/g,' ').slice(0,100));
+          const links = [];
+          for (const m of firstHtml.matchAll(/<a\b[^>]*href=["'](\/play\/[^"'#?]+)["'][^>]*>/gi)) {
+            const tag = m[0];
+            const getAttr = name => tag.match(new RegExp('\\b' + name + '=["']([^"']*)["']','i'))?.[1] || '';
+            const episode = getAttr('data-episode');
+            const line = getAttr('data-line');
+            const dataid = getAttr('dataid');
+            if (episode && links.every(x => x.href !== m[1])) links.push({ href: m[1], episode, line, dataid, tag });
+          }
+          const strictMatches = [...firstHtml.matchAll(/<a\b[^>]*href=["']\/play\/([A-Za-z0-9]+)["'][^>]*data-line=["'](\d+)["'][^>]*data-episode=["'](\d+)["'][^>]*dataid=["'](\d+)["'][^>]*>([\s\S]*?)<\/a>/gi)];
+          console.log('Episode anchors discovered:', links.length);
+          console.log('Anchors accepted by current adapter parser:', strictMatches.length);
+          console.log('First episode anchor:', links[0]?.tag || 'none');
+          if (links.length && strictMatches.length === 0) throw new Error('Live episode anchor ordering is incompatible with adapter parser');
+          const targets = links.length ? [links[0], links[Math.floor((links.length-1)/2)], links[links.length-1]] : [{href:new URL(process.env.PLAY_URL).pathname}];
+          const seen = new Set();
+          for (const ep of targets) {
+            if (seen.has(ep.href)) continue;
+            seen.add(ep.href);
+            const pageUrl = new URL(ep.href, process.env.PLAY_URL).toString();
+            const html = ep.href === new URL(process.env.PLAY_URL).pathname ? firstHtml : await getText(pageUrl);
+            const meta = readMeta(html, pageUrl);
+            const endpoint = meta.apiRoot + '/video/' + meta.videoId + '.' + meta.episode;
+            const r = await fetch(endpoint, { headers, signal: AbortSignal.timeout(20000) });
+            if (!r.ok) throw new Error('Danmaku HTTP ' + r.status + ' for ' + endpoint);
+            const payload = await r.json();
+            if (payload.code !== 0 || !Array.isArray(payload.data)) throw new Error('Invalid danmaku payload for ' + endpoint);
+            console.log(JSON.stringify({ page: pageUrl, videoId: meta.videoId, episode: meta.episode, endpoint, danmakuCount: payload.data.length }));
+          }
+          console.log('LIVE MULTI-EPISODE PROBE PASSED');
           NODE
