@@ -2151,7 +2151,7 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
     if (hasSeasonEpisode(season, episode)) {
         // 剧集模式逻辑
         const filteredTmpEpisodes = filterEpisodesByTitle(bangumiData.bangumi.episodes);
-        const options = { preferredPlatform: platform, sourceFallback: hasTitlePreference ? animePlatform(anime) : null, ordinalOnly: hasTitlePreference, exactOnly, groups: searchData.seasonGroups?.get(anime) };
+        const options = { preferredPlatform: platform, sourceFallback: hasTitlePreference ? animePlatform(anime) : null, ordinalOnly: hasTitlePreference, exactOnly, includePeriod: season === 0, groups: searchData.seasonGroups?.get(anime) };
         const filteredEpisodes = filterSameEpisodeTitle(filteredTmpEpisodes, options);
         
         log("info", "[system] [match] 过滤后的集标题", filteredEpisodes.map(episode => episode.episodeTitle));
@@ -2294,7 +2294,7 @@ export async function fallbackMatchAniAndEp(searchData, req, season, episode, ye
       const filteredTmpEpisodes = filterEpisodesByTitle(bangumiData.bangumi.episodes);
 
       // 过滤集标题一致的 episode，且保留首次出现的集标题的 episode
-      const options = { ordinalOnly: Boolean(preference), groups: searchData.seasonGroups?.get(anime) };
+      const options = { ordinalOnly: Boolean(preference), includePeriod: season === 0, groups: searchData.seasonGroups?.get(anime) };
       const filteredEpisodes = filterSameEpisodeTitle(filteredTmpEpisodes, options);
 
       log("info", "[system] [LogVar-API] 过滤后的集标题", filteredEpisodes.map(episode => episode.episodeTitle));
