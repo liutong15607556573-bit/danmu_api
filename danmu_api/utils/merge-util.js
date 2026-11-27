@@ -3777,20 +3777,16 @@ export function alignSourceTimelines(results, sourceNames, realIds, minMatchRati
             };
         });
 
-        // 相邻偏移段之间以锚点时间中点作为剪辑边界；不向证据覆盖范围之外外推。
-        const boundaries = [];
-        for (let i = 0; i < segments.length - 1; i++) {
-            boundaries.push((segments[i].end + segments[i + 1].start) / 2);
-        }
+        // 只在每段实际锚点覆盖区间内校准；相邻分段之间的无证据区间保持原样。
         const minTime = segments[0].start;
         const maxTime = segments[segments.length - 1].end;
         let corrected = 0;
         list.forEach(danmu => {
             const time = getDanmuTime(danmu);
             if (!Number.isFinite(time) || time < minTime || time > maxTime) return;
-            let segmentIndex = boundaries.findIndex(boundary => time <= boundary);
-            if (segmentIndex < 0) segmentIndex = segments.length - 1;
-            const offset = segments[segmentIndex].offset;
+            const segment = segments.find(item => time >= item.start && time <= item.end);
+            if (!segment) return;
+            const offset = segment.offset;
             if (Math.abs(offset) < offsetThreshold) return;
             const targetTime = Math.max(0, time - offset);
             if (typeof danmu.p === 'string') danmu.p = danmu.p.replace(/^[^,]+(?=,)/, targetTime.toFixed(2));
