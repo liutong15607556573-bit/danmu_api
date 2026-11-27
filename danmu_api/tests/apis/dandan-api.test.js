@@ -79,7 +79,7 @@ test('版本筛选严格隔离特殊版，不让普通版命中特殊版', () =>
     assert.deepEqual(filterEpisodesByEdition(episodes, edition).map(ep => ep.episodeId), [edition]);
   }
   assert.deepEqual(
-    filterEpisodesByEdition([{ episodeId: 'series-plus', episodeTitle: '第3集' }], 'plus', 'Natural High Plus').map(ep => ep.episodeId),
+    filterEpisodesByEdition([{ episodeId: 'series-plus', episodeTitle: '第3集' }], 'plus', 'Natural High (Plus)').map(ep => ep.episodeId),
     ['series-plus'],
     '分集标题没有版本词时，可使用节目条目标题中的版本标记'
   );
@@ -103,6 +103,18 @@ test('版本筛选严格隔离特殊版，不让普通版命中特殊版', () =>
   );
   assert.equal(detectExplicitEpisodeEdition('第3集'), null);
   assert.equal(detectExplicitEpisodeEdition('第3集 正片'), 'standard');
+  assert.equal(detectExplicitEpisodeEdition('Special Investigation 第3集'), null, '集标题正文出现 Special 不应误判版本');
+  assert.equal(detectExplicitEpisodeEdition('Natural High Live Concert 第3集'), null, '节目正文出现 Live 不应误判版本');
+  assert.deepEqual(
+    filterEpisodesByEdition([{ episodeId: 'series-live', episodeTitle: '第3集' }], 'live', 'Natural High Live'),
+    [],
+    '节目正式名称以 Live 结尾时不能当作 Live 版本标签'
+  );
+  assert.deepEqual(
+    filterEpisodesByEdition([{ episodeId: 'series-live-tag', episodeTitle: '第3集' }], 'live', 'Natural High (Live)'),
+    [{ episodeId: 'series-live-tag', episodeTitle: '第3集' }],
+    '节目标题括号中的明确 Live 标签可以作为版本证据'
+  );
 });
 
 test('PARSE TitleSeasonEpisode', async () => {
