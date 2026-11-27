@@ -55,6 +55,10 @@ test('iqiyi episode number is inserted after the anime title when missing', () =
     ensureNumber('太古神尊 天魔秘藏', '太古神尊', 10),
     '太古神尊 第10集 天魔秘藏'
   );
+  assert.strictEqual(
+    ensureNumber('奔跑吧 周深教孟子义唱歌', '奔跑吧', 10, '综艺'),
+    '奔跑吧 第10期 周深教孟子义唱歌'
+  );
   // 不以作品名开头时集数置于标题前
   assert.strictEqual(ensureNumber('天魔秘藏', '太古神尊', 10), '第10集 天魔秘藏');
   // 作品名带年份与类型后缀时，剥去后缀再比对
@@ -71,6 +75,20 @@ test('iqiyi episode number keeps titles that already carry an episode number', (
   );
   // 接口的其它集数写法同样视为已含集数
   assert.strictEqual(ensureNumber('太古神尊 EP11', '太古神尊', 11), '太古神尊 EP11');
+});
+
+test('iqiyi 综艺搜索期号不参与季度匹配', async () => {
+  const source = new IqiyiSource();
+  const requestedSeasons = [];
+  source.getEpisodes = async (_id, season) => { requestedSeasons.push(season); return []; };
+  await source.handleAnimes(
+    [{ mediaId: 'variety-1', title: '奔跑吧第9季', type: '综艺', year: 2025 }],
+    '奔跑吧 第1期上 周深',
+    [],
+    null,
+    1
+  );
+  assert.deepStrictEqual(requestedSeasons, [null]);
 });
 
 test('iqiyi episode number is not added without a valid order', () => {
