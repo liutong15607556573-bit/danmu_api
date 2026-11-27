@@ -1,0 +1,44 @@
+name: 4K live source probe
+
+on:
+  push:
+    branches: [feature/4k-danmaku-source]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe real 4K playback page and danmaku API
+        env:
+          PLAY_URL: https://www.4kvm.net/play/ch4s99p1u
+          SAMPLE_API: https://4k.dmservce.org/api/v1/danmuku/video/2274.1
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 1 --max-time 20 -A 'Mozilla/5.0' "$PLAY_URL" -o /tmp/4k-play.html
+          curl -fsSL --retry 1 --max-time 20 -A 'Mozilla/5.0' "$SAMPLE_API" -o /tmp/4k-danmaku.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const html = fs.readFileSync('/tmp/4k-play.html', 'utf8');
+          const payload = JSON.parse(fs.readFileSync('/tmp/4k-danmaku.json', 'utf8'));
+          const player = html.match(/<[^>]*data-danmaku-api-url=["']([^"']+)["'][^>]*data-danmaku-enabled=["']true["'][^>]*>/i)
+            || html.match(/<[^>]*data-danmaku-enabled=["']true["'][^>]*data-danmaku-api-url=["']([^"']+)["'][^>]*>/i);
+          const video = html.match(/id=["']player-error-message-detail["'][^>]*data-v-id=["'](\d+)["']/i)
+            || html.match(/data-v-id=["'](\d+)["'][^>]*id=["']player-error-message-detail["']/i);
+          const manager = html.match(/x-data=["']episodeManager\(\s*\d+\s*,\s*(\d+)\s*,/i);
+          console.log('Playback page HTTP: OK');
+          console.log('Page title:', (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || 'not found').replace(/\s+/g,' ').slice(0,120));
+          console.log('Danmaku API root:', player?.[1] || 'NOT FOUND');
+          console.log('Page video ID:', video?.[1] || 'NOT FOUND');
+          console.log('Episode number:', manager?.[1] || 'NOT FOUND');
+          if (!player || !video || !manager) throw new Error('Playback page metadata extraction failed');
+          console.log('Sample API HTTP: OK');
+          console.log('API code:', payload.code);
+          console.log('Danmaku item count:', Array.isArray(payload.data) ? payload.data.length : 'NOT AN ARRAY');
+          console.log('Sample item:', JSON.stringify(payload.data?.[0] ?? null));
+          if (payload.code !== 0 || !Array.isArray(payload.data)) throw new Error('Danmaku API payload shape invalid');
+          NODE
