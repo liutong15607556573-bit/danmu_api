@@ -46,3 +46,26 @@ test('4K API comments normalize seconds, modes and all hex colors including blac
     { timepoint: 5, ct: 1, color: 16777215, content: '' }
   ]);
 });
+
+
+test('4K real-page-shaped markup extracts player metadata and episode slugs', () => {
+  // 精简自公开的 4K 影视播放页 HTML 结构，保留真实属性顺序与 Alpine 参数形态。
+  const html = `
+    <div class="player" x-data="artPlayer()" data-danmaku-enabled="true"
+      data-danmaku-api-url="https://4k.dmservce.org/api/v1/danmuku"></div>
+    <p id="player-error-message-detail" data-v-id="5496"></p>
+    <div x-data="episodeManager(1, 1, [
+      { lineName: 'alists', episodeCount: 60 }
+    ])"></div>
+    <a href="/play/ch4rt1ctb" @click.prevent="handleEpisodeClick($el.getAttribute('href'), '41755', 1, 1)"
+      x-show="showEpisode(1)" data-line="1" data-episode="1" dataid="41755">1</a>
+    <a href="/play/ch4rt1ctc" @click.prevent="handleEpisodeClick($el.getAttribute('href'), '41756', 1, 2)"
+      x-show="showEpisode(2)" data-line="1" data-episode="2" dataid="41756">2</a>
+  `;
+  assert.deepEqual(parse4kPlayerMetadata(html), {
+    apiRoot: 'https://4k.dmservce.org/api/v1/danmuku', videoId: '5496', episode: 1
+  });
+  assert.deepEqual(parse4kEpisodes(html).map(ep => [ep.slug, ep.number, ep.playId]), [
+    ['ch4rt1ctb', 1, '41755'], ['ch4rt1ctc', 2, '41756']
+  ]);
+});
