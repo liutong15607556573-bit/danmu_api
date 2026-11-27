@@ -8,7 +8,6 @@ import { addAnime, removeEarliestAnime } from '../utils/cache-util.js';
 import { titleMatches, getExplicitSeasonNumber, extractSeasonNumberFromAnimeTitle } from '../utils/common-util.js';
 
 const SITE = 'https://www.4kvm.net';
-const DANMU_HOST = 'https://4k.dmservce.org';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36';
 
 function decodeHtml(value = '') {
@@ -24,7 +23,7 @@ function stripTags(value = '') {
 }
 function attr(html, name) {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const m = html.match(new RegExp('\\b' + escaped + '\\s*=\\s*["\\']([^"\\']*)["\\']', 'i'));
+  const m = html.match(new RegExp(`\\b${escaped}\\s*=\\s*["']([^"']*)["']`, 'i'));
   return m ? decodeHtml(m[1]) : '';
 }
 
