@@ -1596,7 +1596,7 @@ function findEpisodeByNumber(filteredEpisodes, episode, targetEpisode, platform 
   if (platformEpisodes.length === 0) {
     return null;
   }
-  if (ordinalOnly && episode === targetEpisode) {
+  if (ordinalOnly && episode === targetEpisode && !requiredPeriodPart) {
     return platformEpisodes.find(ep => (!exactOnly || ep.explicitNumber) && Number(ep.episodeNumber) === targetEpisode) || null;
   }
   
