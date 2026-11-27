@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parse4kEpisodes, parse4kPlayerMetadata, parse4kSearchResults } from '../../sources/4k.js';
+import { parse4kEpisodes, parse4kPlayerMetadata, parse4kSearchResults, normalize4kDanmaku } from '../../sources/4k.js';
 
 test('4K search cards extract play slug and title, not data-vod', () => {
   const html = '<a href="/play/AbC123" data-vod="vod-x"><img data-src="/cover.jpg"><h3>测试剧集</h3></a>';
@@ -32,4 +32,17 @@ test('4K metadata rejects missing IDs and untrusted API hosts', () => {
     + '<div data-danmaku-api-url="https://evil.example/api" data-danmaku-enabled="true"></div>'
     + '<div x-data="episodeManager(1, 1, [])"></div>';
   assert.equal(parse4kPlayerMetadata(html), null);
+});
+
+test('4K API comments normalize seconds, modes and all hex colors including black', () => {
+  assert.deepEqual(normalize4kDanmaku([
+    { time: 48, mode: 0, color: '#000000', content: '黑色弹幕' },
+    { time: '12.5', mode: 1, color: '#FFFFFF', content: '白色弹幕' },
+    { time: 'bad', mode: 1, color: '#FFFFFF', content: 'invalid' },
+    { time: 5, mode: 1, color: '#FFFFFF', content: '' }
+  ]), [
+    { timepoint: 48, ct: 0, color: 0, content: '黑色弹幕' },
+    { timepoint: 12.5, ct: 1, color: 16777215, content: '白色弹幕' },
+    { timepoint: 5, ct: 1, color: 16777215, content: '' }
+  ]);
 });
