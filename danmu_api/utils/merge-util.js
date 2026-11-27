@@ -3673,35 +3673,29 @@ export function mergeDanmakuList(listA, listB) {
 export function alignSourceTimelines(results, sourceNames, realIds, minMatchRatio = 0.8, offsetThreshold = 1) {
     if (!Array.isArray(results) || !Array.isArray(sourceNames) || results.length < 2) return results;
 
-    // 不再把 dandan 当作唯一时间轴真值。选择与其他来源弹幕文本重合度最高的来源作为本轮参照，
-    // 这样当 dandan 缺失或本身属于不同剪辑版本时，仍可用多源共同内容建立更稳健的参照。
-    const textSets = results.map((list) => {
-        const set = new Set();
-        (Array.isArray(list) ? list : []).forEach((item) => {
-            const text = normalizeText(getDanmuText(item));
-            if (text) set.add(text);
-        });
-        return set;
-    });
+    // 参照源按与其他源的唯一文本重合量选择；这里只建立候选参照，不代表它与当前播放文件绝对一致。
+    const textSets = results.map((list) => new Set(
+        (Array.isArray(list) ? list : [])
+            .map(item => normalizeText(getDanmuText(item)))
+            .filter(Boolean)
+    ));
     const referenceIndex = results.reduce((bestIndex, list, index) => {
         if (!Array.isArray(list) || list.length === 0 || textSets[index].size === 0) return bestIndex;
         if (bestIndex < 0) return index;
-        let score = 0;
-        let bestScore = 0;
-        for (let other = 0; other < results.length; other++) {
-            if (other === index) continue;
-            for (const text of textSets[index]) {
-                if (textSets[other].has(text)) score++;
+        const overlapScore = (candidateIndex) => {
+            let score = 0;
+            for (let other = 0; other < results.length; other++) {
+                if (other === candidateIndex) continue;
+                for (const text of textSets[candidateIndex]) {
+                    if (textSets[other].has(text)) score++;
+                }
             }
-        }
-        for (let other = 0; other < results.length; other++) {
-            if (other === bestIndex) continue;
-            for (const text of textSets[bestIndex]) {
-                if (textSets[other].has(text)) bestScore++;
-            }
-        }
-        if (score > bestScore || (score === bestScore && list.length > results[bestIndex].length)) return index;
-        return bestIndex;
+            return score;
+        };
+        const score = overlapScore(index);
+        const bestScore = overlapScore(bestIndex);
+        return score > bestScore || (score === bestScore && list.length > results[bestIndex].length)
+            ? index : bestIndex;
     }, -1);
 
     if (referenceIndex < 0) {
@@ -3711,51 +3705,74 @@ export function alignSourceTimelines(results, sourceNames, realIds, minMatchRati
 
     const referenceName = sourceNames[referenceIndex] || String(referenceIndex);
     const referenceList = results[referenceIndex];
-    const referenceTextMap = new Map();
+    const referenceByText = new Map();
     referenceList.forEach(item => {
         const text = normalizeText(getDanmuText(item));
         const time = getDanmuTime(item);
-        // 同一文本多次出现时保留最早时间点，延续原有算法的保守策略。
-        if (text && (!referenceTextMap.has(text) || time < referenceTextMap.get(text))) {
-            referenceTextMap.set(text, time);
-        }
+        if (!text || !Number.isFinite(time)) return;
+        if (!referenceByText.has(text)) referenceByText.set(text, []);
+        referenceByText.get(text).push(time);
     });
+    referenceByText.forEach(times => times.sort((a, b) => a - b));
 
     log("info", `[merge][aligntimeline] 选择 ${referenceName}:${realIds?.[referenceIndex] || ''} 作为本轮共同内容参照`);
 
     results.forEach((list, idx) => {
         if (idx === referenceIndex || !Array.isArray(list) || !list.length) return;
-
         const sourceName = sourceNames[idx] || String(idx);
-        const offsetCounts = new Map();
-        const parsedCache = [];
-        let matchCount = 0;
-
-        list.forEach(danmu => {
-            const text = normalizeText(getDanmuText(danmu));
-            const time = getDanmuTime(danmu);
-            parsedCache.push({ danmu, time });
-            if (text && referenceTextMap.has(text)) {
-                matchCount++;
-                const offset = Math.round(time - referenceTextMap.get(text));
-                offsetCounts.set(offset, (offsetCounts.get(offset) || 0) + 1);
-            }
+        const sourceByText = new Map();
+        list.forEach(item => {
+            const text = normalizeText(getDanmuText(item));
+            const time = getDanmuTime(item);
+            if (!text || !Number.isFinite(time) || !referenceByText.has(text)) return;
+            if (!sourceByText.has(text)) sourceByText.set(text, []);
+            sourceByText.get(text).push({ item, time });
         });
 
+        // 重复文本不再一律绑定到参照源最早出现的位置。用一对一时间配对评估偏移，
+        // 防止“好的”“哈哈”等高频重复弹幕把时间轴投票带偏。
+        const offsetCandidates = new Set();
+        sourceByText.forEach((sourceItems, text) => {
+            const referenceTimes = referenceByText.get(text);
+            sourceItems.forEach(({ time }) => referenceTimes.forEach(referenceTime => {
+                offsetCandidates.add(Math.round((time - referenceTime) * 10) / 10);
+            }));
+        });
+
+        const tolerance = 2;
         let bestOffset = 0;
         let maxCount = 0;
-        offsetCounts.forEach((count, offset) => {
-            if (count > maxCount) {
-                maxCount = count;
+        for (const offset of offsetCandidates) {
+            let matched = 0;
+            sourceByText.forEach((sourceItems, text) => {
+                const available = [...referenceByText.get(text)];
+                sourceItems.slice().sort((a, b) => a.time - b.time).forEach(({ time }) => {
+                    const target = time - offset;
+                    let nearestIndex = -1;
+                    let nearestDistance = Infinity;
+                    available.forEach((referenceTime, index) => {
+                        const distance = Math.abs(referenceTime - target);
+                        if (distance < nearestDistance) {
+                            nearestDistance = distance;
+                            nearestIndex = index;
+                        }
+                    });
+                    if (nearestIndex >= 0 && nearestDistance <= tolerance) {
+                        matched++;
+                        available.splice(nearestIndex, 1);
+                    }
+                });
+            });
+            if (matched > maxCount || (matched === maxCount && Math.abs(offset) < Math.abs(bestOffset))) {
+                maxCount = matched;
                 bestOffset = offset;
             }
-        });
+        }
 
         const minCount = Math.min(referenceList.length, list.length);
-        const effectiveRatio = minCount > 0 ? maxCount / minCount : 0;
-        const consensusRatio = matchCount > 0 ? maxCount / matchCount : 0;
-        if ((matchCount / Math.max(1, minCount)) < minMatchRatio || effectiveRatio < 0.05 || consensusRatio < 0.15) {
-            log("info", `[merge][aligntimeline] ${sourceName}:${realIds?.[idx] || ''} 与参照 ${referenceName} 的共同内容不足或偏移分散，跳过对齐`);
+        const matchRatio = minCount > 0 ? maxCount / minCount : 0;
+        if (matchRatio < minMatchRatio || maxCount < 2) {
+            log("info", `[merge][aligntimeline] ${sourceName}:${realIds?.[idx] || ''} 与参照 ${referenceName} 的一对一共同内容不足，跳过对齐`);
             return;
         }
         if (Math.abs(bestOffset) < offsetThreshold) {
@@ -3763,8 +3780,9 @@ export function alignSourceTimelines(results, sourceNames, realIds, minMatchRati
             return;
         }
 
-        log("info", `[merge][aligntimeline] ${sourceName}:${realIds?.[idx] || ''} 相对参照 ${referenceName} 校准 ${bestOffset}s (获 ${maxCount} 票)`);
-        parsedCache.forEach(({ danmu, time }) => {
+        log("info", `[merge][aligntimeline] ${sourceName}:${realIds?.[idx] || ''} 相对参照 ${referenceName} 校准 ${bestOffset}s (一对一匹配 ${maxCount} 条)`);
+        list.forEach(danmu => {
+            const time = getDanmuTime(danmu);
             const targetTime = Math.max(0, time - bestOffset);
             if (typeof danmu.p === 'string') danmu.p = danmu.p.replace(/^[^,]+(?=,)/, targetTime.toFixed(2));
             if (danmu.t != null) danmu.t = targetTime;
