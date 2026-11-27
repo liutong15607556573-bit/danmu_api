@@ -59,6 +59,11 @@ test('版本筛选严格隔离特殊版，不让普通版命中特殊版', () =>
   for (const edition of ['standard', 'pure', 'plus', 'special', 'live']) {
     assert.deepEqual(filterEpisodesByEdition(episodes, edition).map(ep => ep.episodeId), [edition]);
   }
+  assert.deepEqual(
+    filterEpisodesByEdition([{ episodeId: 'series-plus', episodeTitle: '第3集' }], 'plus', 'Natural High Plus').map(ep => ep.episodeId),
+    ['series-plus'],
+    '分集标题没有版本词时，可使用节目条目标题中的版本标记'
+  );
 });
 
 test('PARSE TitleSeasonEpisode', async () => {
