@@ -3325,7 +3325,7 @@ async function fetchMergedComments(url, animeTitle, commentId) {
       manualOffsetPercent,
     };
   });
-  const sourceNames = partMetas.map(meta => meta.logicalSource).filter(Boolean);
+  const sourceNames = partMetas.map(meta => meta.logicalSource); // 保留空占位，确保与 results / realIds 索引严格对应
   const realIds = partMetas.map(meta => meta.realId);
   const sourceTag = partMetas.map(meta => meta.sourceLabel).filter(Boolean).join('＆');
 
