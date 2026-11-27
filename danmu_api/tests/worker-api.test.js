@@ -1282,8 +1282,8 @@ test('4K影视播放链接可路由整集弹幕、分片列表和分片弹幕', 
 
     const segments = await callWorker(`http://localhost/api/v2/comment?url=${encodeURIComponent(playUrl)}&format=json&segmentflag=true`);
     assert.strictEqual(segments.status, 200);
-    assert.strictEqual(segments.json.type, '4k');
-    assert.strictEqual(segments.json.segmentList[0].type, '4k');
+    assert.strictEqual(segments.json.comments.type, '4k');
+    assert.strictEqual(segments.json.comments.segmentList[0].type, '4k');
 
     const segment = await callWorker('http://localhost/api/v2/segmentcomment?format=json', {
       method: 'POST',
