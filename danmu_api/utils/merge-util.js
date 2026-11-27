@@ -830,12 +830,12 @@ const EPISODE_EDITION_LABELS = [
 function getEditionLabel(text, bracketOnly = false) {
     const value = String(text || '');
     if (bracketOnly) {
-        const match = value.match(/[（(\[【]\s*(pure|uncut|plus|extra|special|sp|live|concert|standard|纯享版?|加更版?|特辑|特别篇|直播回放|直播版?|正片|普通版|完整版)\s*[）)\]】]/i);
+        const match = value.match(/[（(\[【]\s*(pure|uncut|plus|extra|special|live|concert|standard|纯享版?|加更版?|特辑|特别篇|直播回放|直播版?|正片|普通版|完整版)\s*[）)\]】]/i);
         if (!match) return null;
         const token = match[1].toLowerCase();
         if (/pure|uncut|纯享/.test(token)) return 'pure';
         if (/plus|extra|加更/.test(token)) return 'plus';
-        if (/special|sp|特辑|特别篇/.test(token)) return 'special';
+        if (/special|特辑|特别篇/.test(token)) return 'special';
         if (/live|concert|直播/.test(token)) return 'live';
         return 'standard';
     }
