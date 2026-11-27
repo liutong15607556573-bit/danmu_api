@@ -355,7 +355,8 @@ export function filterEpisodesByTitle(episodes) {
       .filter(value => value !== null && value !== undefined && String(value).trim())
       .map(value => String(value).trim());
     if (titles.length === 0) return true;
-    return !titles.some(value => globals.episodeTitleFilter.test(value));
+    // 「先导片」在综艺匹配中始终属于非正片；不能被部署环境的自定义过滤正则覆盖掉。
+    return !titles.some(value => /先导/i.test(value) || globals.episodeTitleFilter.test(value));
   });
 }
 
@@ -2560,7 +2561,9 @@ async function selectAnimeMatch({ season, episode, year, searchData, title, req,
   const aiEditionMatches = aiEpisodeEdition
     ? aiEpisodeEdition === (edition || 'standard')
     : (edition || 'standard') === 'standard';
-  if (aiMatchResult.resAnime && aiMatchResult.resEpisode && aiEditionMatches) {
+  const aiEpisodeIsMainContent = aiMatchResult.resEpisode
+    && filterEpisodesByTitle([aiMatchResult.resEpisode]).length === 1;
+  if (aiMatchResult.resAnime && aiMatchResult.resEpisode && aiEditionMatches && aiEpisodeIsMainContent) {
     // AI 直接给出结果，没有逐平台评分
     return { resAnime: aiMatchResult.resAnime, resEpisode: aiMatchResult.resEpisode, spilloverMatched: false, platformAttempts: [] };
   }

@@ -423,6 +423,19 @@ test('filterEpisodesByTitle 同时检查 episodeTitle 与 title，防止先导�
   assert.deepStrictEqual(filtered.map(ep => ep.episodeTitle), ['第1期下：正片']);
 });
 
+test('先导片硬过滤不受自定义 EPISODE_TITLE_FILTER 覆盖', () => {
+  Globals.init({ EPISODE_TITLE_FILTER: '加更', ENABLE_ANIME_EPISODE_FILTER: 'true', GROUP_MINUTE: '0', DANMU_LIMIT: '0', CONVERT_COLOR: 'default', BLOCKED_WORDS: '' });
+  const episodes = [
+    { episodeTitle: '先导片下：贾冰爆炒！沈腾' },
+    { episodeTitle: '第1期下：神秘的热带雨林' },
+  ];
+  assert.deepStrictEqual(
+    filterEpisodesByTitle(episodes).map(ep => ep.episodeTitle),
+    ['第1期下：神秘的热带雨林'],
+    '即使自定义规则只写加更，先导片仍必须排除'
+  );
+});
+
 test('filterEpisodesByTitle 按集标题过滤剧集', () => {
   Globals.init({ ENABLE_ANIME_EPISODE_FILTER: 'true', GROUP_MINUTE: '0', DANMU_LIMIT: '0', CONVERT_COLOR: 'default', BLOCKED_WORDS: '' });
   const episodes = [{ episodeTitle: '第1期上：正片' }, { episodeTitle: '第1期加更：加更' }, { episodeTitle: '先导片上：先导' }];
