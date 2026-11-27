@@ -226,7 +226,7 @@ export class Envs {
    * @returns {Array} 源排序数组
    */
   static resolveSourceOrder() {
-    let sourceOrder = this.get('SOURCE_ORDER', 'iqiyi,tencent,youku,douban,360,renren,hanjutv,acfun,tmdb,4k,aiyifan', 'string');
+    let sourceOrder = this.get('SOURCE_ORDER', 'iqiyi,tencent,youku,douban,360,renren,hanjutv,acfun,tmdb,aiyifan', 'string');
 
     let orderArr = sourceOrder
       .split(',')
