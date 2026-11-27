@@ -3384,7 +3384,7 @@ async function fetchMergedComments(url, animeTitle, commentId) {
       manualOffsetPercent,
     };
   });
-  const sourceNames = partMetas.map(meta => meta.logicalSource).filter(Boolean);
+  const sourceNames = partMetas.map(meta => meta.logicalSource); // 保留空占位，确保与 results / realIds 索引严格对应
   const realIds = partMetas.map(meta => meta.realId);
   const sourceTag = partMetas.map(meta => meta.sourceLabel).filter(Boolean).join('＆');
 
@@ -3502,7 +3502,7 @@ async function fetchMergedComments(url, animeTitle, commentId) {
   );
   const results = indexedResults.flat().sort((a, b) => a.index - b.index).map(x => x.data);
   
-  // 调用以dandan为基准的跨源时间轴对齐函数（仅当存在 dandan 源时执行）
+  // 基于跨来源共有的唯一文本锚点校准时间轴，不绑定特定平台
   alignSourceTimelines(results, sourceNames, realIds);
 
   // 按来源分别应用弹幕时间偏移（对齐后、合并前）
