@@ -44,9 +44,6 @@ jobs:
             const episode = tag.match(/data-episode=[\"']([^\"']*)[\"']/i)?.[1] || '';
             const line = tag.match(/data-line=[\"']([^\"']*)[\"']/i)?.[1] || '';
             const dataid = tag.match(/dataid=[\"']([^\"']*)[\"']/i)?.[1] || '';
-            const episode = getAttr('data-episode');
-            const line = getAttr('data-line');
-            const dataid = getAttr('dataid');
             if (episode && links.every(x => x.href !== m[1])) links.push({ href: m[1], episode, line, dataid, tag });
           }
           const strictMatches = [...firstHtml.matchAll(/<a\b[^>]*href=["']\/play\/([A-Za-z0-9]+)["'][^>]*data-line=["'](\d+)["'][^>]*data-episode=["'](\d+)["'][^>]*dataid=["'](\d+)["'][^>]*>([\s\S]*?)<\/a>/gi)];
