@@ -32,7 +32,7 @@ test('alignSourceTimelines leaves sources unchanged when shared evidence is insu
   assert.deepEqual([sourceA, sourceB], before);
 });
 
-test('alignSourceTimelines handles repeated identical comments without matching every one to the first occurrence', () => {
+test('alignSourceTimelines does not extrapolate before unique anchor coverage with repeated comments', () => {
   const reference = [
     { m: '哈哈', t: 10 },
     { m: '嘉宾登场', t: 80 },
@@ -48,7 +48,8 @@ test('alignSourceTimelines handles repeated identical comments without matching 
 
   alignSourceTimelines([reference, shifted], ['iqiyi', 'youku'], ['a', 'b']);
 
-  assert.deepEqual(shifted.map(item => item.t), [10, 80, 160, 220]);
+  // The first comment is before the unique-anchor coverage (110s), so it must remain unchanged.
+  assert.deepEqual(shifted.map(item => item.t), [40, 80, 160, 220]);
 });
 
 test('alignSourceTimelines does not calibrate from a single repeated phrase', () => {
@@ -161,7 +162,10 @@ test('alignSourceTimelines does not extrapolate a constant offset beyond anchor 
 
   alignSourceTimelines([reference, shifted], ['iqiyi', 'youku'], ['a', 'b']);
 
-  assert.deepEqual(shifted.map(item => item.t), [10, 80, 70, 5, 150]);
+  // The longer shifted list is selected as the reference; align only sourceA's
+  // unique-anchor coverage and do not extrapolate its third, out-of-range comment.
+  assert.deepEqual(sourceA.map(item => item.t), [40, 110, 120]);
+  assert.deepEqual(shifted.map(item => item.t), [40, 110, 100, 5, 150]);
 });
 
 test('alignSourceTimelines does not extrapolate piecewise offsets beyond anchor coverage', () => {
