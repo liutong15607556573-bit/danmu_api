@@ -61,6 +61,16 @@ test('POST /api/v2/match 自动匹配接口（离线）', async t => {
       details.__addAnimeError = 'mock 缓存写入失败';
       return;
     }
+    if (scenario === 'varietyPeriod') {
+      addCandidate(results, details, createAggregatedAnime(930140, '现在就出发 第4季(2026)【综艺】from 360', [
+        { title: '【qq】 先导片上：沈腾沙滩十八滚', url: 'https://v.qq.com/x/cover/test/preview-up.html' },
+        { title: '【qq】 先导片下：贾冰爆炒', url: 'https://v.qq.com/x/cover/test/preview-down.html' },
+        { title: '【qq】 第1期上：出发团变落汤鸡', url: 'https://v.qq.com/x/cover/test/period-up.html' },
+        { title: '【qq】 第1期下：神秘的热带雨林', url: 'https://v.qq.com/x/cover/test/period-down.html' },
+        { title: '【qq】 第1期加更：幕后花絮', url: 'https://v.qq.com/x/cover/test/period-extra.html' }
+      ]));
+      return;
+    }
     if (scenario === 'platform') {
       const qqAnime = createFavoriteAnime(title, episodeCount, 930004);
       const qiyiAnime = createFavoriteAnime(title, episodeCount, 930005);
@@ -264,6 +274,17 @@ test('POST /api/v2/match 自动匹配接口（离线）', async t => {
       assert.deepStrictEqual(body.matches, []);
       assert.equal(body.errorMessage, '');
       assert.equal(getLastSearch('b2-ip'), undefined);
+    });
+
+    await t.test('综艺第1期下精确选择下半期，不误选先导片或上半期', async () => {
+      const { body } = await runMatch({
+        body: { fileName: '现在就出发 第4季 S4E2 第1期下：神秘的热带雨林' },
+        clientIp: 'variety-period-down-ip',
+        scn: 'varietyPeriod'
+      });
+      assert.equal(body.isMatched, true);
+      assert.equal(body.matches[0].episodeId, 9301404);
+      assert.match(body.matches[0].episodeTitle, /第1期下/);
     });
 
     await t.test('C fileName 解析：搜索关键词与集号', async () => {
