@@ -299,14 +299,13 @@ export function resolveEpisodeCount(declaredCount, availableCount) {
 }
 
 // 按集标题过滤剧集
-export 
 export function classifyEpisodeEdition(value) {
   const text = String(value || '').toLowerCase();
   const patterns = [
-    ['pure', /(?:^|[.\\s_\\-])(?:pure|uncut|纯享版|纯享)(?=$|[.\\s_\\-])/i],
-    ['plus', /(?:^|[.\\s_\\-])(?:plus|extra|加更版|加更)(?=$|[.\\s_\\-])/i],
-    ['special', /(?:^|[.\\s_\\-])(?:special|sp|特辑|特别篇)(?=$|[.\\s_\\-])/i],
-    ['live', /(?:^|[.\\s_\\-])(?:live|concert|直播回放|直播)(?=$|[.\\s_\\-])/i],
+    ['pure', /(?:^|[.\\s_\\-])(?:pure|uncut)(?=$|[.\\s_\\-])|纯享版|纯享/i],
+    ['plus', /(?:^|[.\\s_\\-])(?:plus|extra)(?=$|[.\\s_\\-])|加更版|加更/i],
+    ['special', /(?:^|[.\\s_\\-])(?:special|sp)(?=$|[.\\s_\\-])|特辑|特别篇/i],
+    ['live', /(?:^|[.\\s_\\-])(?:live|concert)(?=$|[.\\s_\\-])|直播回放|直播/i],
   ];
   for (const [edition, pattern] of patterns) if (pattern.test(text)) return edition;
   return 'standard';
@@ -2342,7 +2341,7 @@ export async function fallbackMatchAniAndEp(searchData, req, season, episode, ye
 
   // 跨季兜底溢出查找逻辑
   let isSpillover = false;
-  if (!resEpisode && hasSeasonEpisode(season, episode)) {
+  if (!resEpisode && hasSeasonEpisode(season, episode) && edition === 'standard') {
     const spilloverRes = findCrossSeasonEpisodeMap(preference?.seriesData || searchData, title, year, season, episode, null, detailStore, preference);
     if (spilloverRes.resEpisode) {
       resEpisode = spilloverRes.resEpisode;
