@@ -322,6 +322,14 @@ test('POST /api/v2/match 自动匹配接口（离线）', async t => {
       const missing = await runMatch({ body: { fileName: '航海王 S01E01', sourceName: '优酷' }, scn: 'platform' });
       assert.equal(missing.body.isMatched, false);
       assert.deepStrictEqual(missing.body.matches, []);
+
+      // 聚合源同时挂有芒果第1集和腾讯第2集：不能把芒果第1集当作腾讯第1集返回。
+      const wrongEpisodePlatform = await runMatch({
+        body: { fileName: '平台测试 S01E01', sourceName: '腾讯视频' },
+        scn: 'aggregatedMissingPlatform'
+      });
+      assert.equal(wrongEpisodePlatform.body.isMatched, false);
+      assert.deepStrictEqual(wrongEpisodePlatform.body.matches, []);
     });
 
     await t.test('按剧平台优先于全局，支持别名、映射和请求覆盖，不影响其他剧', async () => {
