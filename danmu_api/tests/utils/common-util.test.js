@@ -13,7 +13,7 @@ import {
   extractSeasonNumberFromAnimeTitle, extractYear, convertChineseNumber, parseFileName,
   createDynamicPlatformOrder, sanitizeSearchKeyword, stripNonTitleChars, strictTitleMatch,
   getExplicitSeasonNumber, titleMatches, extractEpisodeNumberFromTitle, extractAnimeInfo,
-  extractEpisodeTitle, extractAnimeTitle, printFirst200Chars, normalizeTitleForMatch, titleDecisionMeta,
+  extractEpisodeTitle, extractAnimeTitle, printFirst200Chars, normalizeTitleForMatch, titleDecisionMeta, stripVarietyEpisodeMarker,
 } from '../../utils/common-util.js';
 
 test('season extraction recognizes season markers', () => {
@@ -112,12 +112,21 @@ test('common-util extractEpisodeNumberFromTitle 覆盖 第N集/EPN/纯数字', (
   assert.strictEqual(extractEpisodeNumberFromTitle('【qq】 第1集'), 1);
   assert.strictEqual(extractEpisodeNumberFromTitle('第01话'), 1);
   assert.strictEqual(extractEpisodeNumberFromTitle('第12回'), 12);
+  assert.strictEqual(extractEpisodeNumberFromTitle('第12期'), 12, '综艺期数也按分集序号解析');
+  assert.strictEqual(extractEpisodeNumberFromTitle('第03期上'), 3, '综艺上下期保留期数');
   assert.strictEqual(extractEpisodeNumberFromTitle('EP05'), 5);
   assert.strictEqual(extractEpisodeNumberFromTitle('S01E07'), 7);
   assert.strictEqual(extractEpisodeNumberFromTitle(' 3 '), 3, '首尾空白的裸数字按集号');
   assert.strictEqual(extractEpisodeNumberFromTitle('第2季'), null, '季号不算集号');
   assert.strictEqual(extractEpisodeNumberFromTitle('无集号信息'), null);
   assert.strictEqual(extractEpisodeNumberFromTitle(''), null);
+});
+
+test('common-util stripVarietyEpisodeMarker 去除期数和 SxxEyy 后缀', () => {
+  assert.equal(stripVarietyEpisodeMarker('奔跑吧 第1期上 周深教孟子义唱歌'), '奔跑吧');
+  assert.equal(stripVarietyEpisodeMarker('奔跑吧 S09E01'), '奔跑吧');
+  assert.equal(stripVarietyEpisodeMarker('奔跑吧'), '奔跑吧');
+  assert.equal(stripVarietyEpisodeMarker('快乐大本营 2020'), '快乐大本营 2020');
 });
 
 test('common-util extractAnimeTitle/extractEpisodeTitle/extractAnimeInfo 组合解析', () => {

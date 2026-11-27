@@ -55,10 +55,19 @@ function buildTencentFetch({ getinfoResponse = null } = {}) {
   return { fetchImpl, calls };
 }
 
+test('tencent 综艺期数不会被误当成季度，且期标题可匹配节目名', () => {
+  const source = new TencentSource();
+  assert.equal(source.titleOrAliasMatches({ title: '奔跑吧第9季', type: '综艺' }, '奔跑吧 第1期', 1), true);
+  assert.equal(source.titleOrAliasMatches({ title: '奔跑吧第9季', type: '综艺' }, '奔跑吧 第1期上 周深', 1), true);
+  assert.equal(source.titleOrAliasMatches({ title: '奔跑吧第9季', type: '综艺' }, '极限挑战 第1期', 1), false);
+});
+
 test('tencent 标题字段规范化与兜底', () => {
   const source = new TencentSource();
 
   assert.equal(source.normalizeUnionTitle('兰香如故_001'), '兰香如故 第1集');
+  assert.equal(source.normalizeUnionTitle('奔跑吧_001', '期'), '奔跑吧 第1期');
+  assert.equal(source.buildEpisodeTitle({ unionTitle: '奔跑吧_002' }, '综艺'), '奔跑吧 第2期');
   assert.equal(source.normalizeUnionTitle(' 兰香如故_01 '), '兰香如故 第1集');
   assert.equal(source.normalizeUnionTitle('01'), '第1集');
   assert.equal(source.normalizeUnionTitle('兰香如故'), '兰香如故');

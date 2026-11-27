@@ -5,7 +5,7 @@ import { httpGet, httpPost } from "../utils/http-util.js";
 import { convertToAsciiSum } from "../utils/codec-util.js";
 import { generateValidStartDate } from "../utils/time-util.js";
 import { addAnime, removeEarliestAnime } from "../utils/cache-util.js";
-import { printFirst200Chars, titleMatches, getExplicitSeasonNumber, extractSeasonNumberFromAnimeTitle, normalizeTitleForMatch } from "../utils/common-util.js";
+import { printFirst200Chars, titleMatches, getExplicitSeasonNumber, extractSeasonNumberFromAnimeTitle, normalizeTitleForMatch, stripVarietyEpisodeMarker } from "../utils/common-util.js";
 import { SegmentListResponse } from '../models/dandan-model.js';
 
 // =====================
@@ -32,8 +32,11 @@ export default class TencentSource extends BaseSource {
   }
 
   titleOrAliasMatches(anime, queryTitle, querySeason = null) {
-    if (titleMatches(anime.title, queryTitle, querySeason, false, 0.8, anime.title)) return true;
-    return Array.isArray(anime.aliases) && anime.aliases.some(alias => titleMatches(alias, queryTitle, querySeason, false, 0.8, anime.title));
+    const isVariety = String(anime?.type || '').includes('综艺');
+    const matchTitle = isVariety ? stripVarietyEpisodeMarker(queryTitle) : queryTitle;
+    const matchSeason = isVariety ? null : querySeason;
+    if (titleMatches(anime.title, matchTitle, matchSeason, false, 0.8, anime.title)) return true;
+    return Array.isArray(anime.aliases) && anime.aliases.some(alias => titleMatches(alias, matchTitle, matchSeason, false, 0.8, anime.title));
   }
 
   // 搜索结果中用于补充同题材作品的分区：相关影视、与 X 相关、与关键词同名
@@ -345,21 +348,21 @@ export default class TencentSource extends BaseSource {
   }
 
   // 「兰香如故_01」->「兰香如故 第1集」；兼容纯数字集号（如 "01"）
-  normalizeUnionTitle(unionTitle) {
+  normalizeUnionTitle(unionTitle, episodeUnit = '集') {
     if (unionTitle === undefined || unionTitle === null) return '';
     const value = String(unionTitle).trim();
     if (!value) return '';
     const m = value.match(/^(.*?)_0*(\d+)$/);
-    if (m && m[1]) return `${m[1]} 第${m[2]}集`;
-    return this.formatEpisodeNumber(value);
+    if (m && m[1]) return `${m[1]} 第${m[2]}${episodeUnit}`;
+    return this.formatEpisodeNumber(value, episodeUnit);
   }
 
-  // 纯数字集号统一补成「第N集」，非纯数字标题原样返回
-  formatEpisodeNumber(value) {
+  // 纯数字序号统一补成「第N集/期」，非纯数字标题原样返回
+  formatEpisodeNumber(value, episodeUnit = '集') {
     if (value === undefined || value === null) return '';
     const text = String(value).trim();
     if (!/^\d+$/.test(text)) return text;
-    return `第${Number.parseInt(text, 10)}集`;
+    return `第${Number.parseInt(text, 10)}${episodeUnit}`;
   }
 
   /**
@@ -373,17 +376,18 @@ export default class TencentSource extends BaseSource {
    * @param {object} ep allEpisodes 中的分集对象
    * @returns {string} 组装后的标题，全部字段缺失时返回空串
    */
-  buildEpisodeTitle(ep) {
+  buildEpisodeTitle(ep, mediaType = '') {
     if (!ep) return '';
     const playTitle = typeof ep.playTitle === 'string' ? ep.playTitle.trim() : '';
     const subtitle = typeof ep.videoSubtitle === 'string' ? ep.videoSubtitle.trim() : '';
     const cTitleOutput = typeof ep.cTitleOutput === 'string' ? ep.cTitleOutput.trim() : '';
     const title = typeof ep.title === 'string' ? ep.title.trim() : '';
+    const episodeUnit = String(mediaType).includes('综艺') ? '期' : '集';
 
     let base = playTitle
-      || this.normalizeUnionTitle(ep.unionTitle)
-      || this.formatEpisodeNumber(cTitleOutput)
-      || this.formatEpisodeNumber(title);
+      || this.normalizeUnionTitle(ep.unionTitle, episodeUnit)
+      || this.formatEpisodeNumber(cTitleOutput, episodeUnit)
+      || this.formatEpisodeNumber(title, episodeUnit);
     if (!base) return '';
 
     // 集号去前导零：「第001话」->「第1话」，与 iqiyi/youku 展示风格一致
@@ -650,6 +654,7 @@ export default class TencentSource extends BaseSource {
     // 初始列表预过滤机制：若用户指定了季度，优先检查结果中是否已包含匹配项
     if (resolvedQuerySeason !== null) {
       const seasonFiltered = filteredAnimes.filter(anime => {
+        if (String(anime.type || '').includes('综艺')) return true;
         const s = extractSeasonNumberFromAnimeTitle(anime.title).season;
         return s === resolvedQuerySeason || (resolvedQuerySeason === 1 && s === null);
       });
@@ -670,7 +675,8 @@ export default class TencentSource extends BaseSource {
           for (let i = 0; i < eps.length; i++) {
             const ep = eps[i];
             // 组装「集数 + 集标题」，与 iqiyi/youku 源展示形态一致
-            const epTitle = this.buildEpisodeTitle(ep) || `第${i + 1}集`;
+            const episodeUnit = String(anime.type || '').includes('综艺') ? '期' : '集';
+            const epTitle = this.buildEpisodeTitle(ep, anime.type) || `第${i + 1}${episodeUnit}`;
             // 构建完整URL: https://v.qq.com/x/cover/{cid}/{vid}.html
             const fullUrl = `https://v.qq.com/x/cover/${anime.mediaId}/${ep.vid}.html`;
             links.push({
