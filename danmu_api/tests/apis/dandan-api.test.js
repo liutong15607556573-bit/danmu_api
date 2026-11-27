@@ -48,6 +48,19 @@ test('文件名版本标记识别 Pure/Plus/Special/Live，忽略清晰度编码
   }
 });
 
+test('版本标记支持空格和连字符分隔', async () => {
+  const cases = [
+    ['Natural High S04E03 Pure 2026 1080p', 'pure'],
+    ['Natural High S04E03-Plus-2026-1080p', 'plus'],
+    ['Natural High S04E03 Special 2026 1080p', 'special'],
+    ['Natural High S04E03 Live 2026 1080p', 'live'],
+  ];
+  for (const [filename, edition] of cases) {
+    const parsed = await extractTitleSeasonEpisode(filename);
+    assert.equal(parsed.edition, edition, filename);
+  }
+});
+
 test('中文综艺第N期文件名也能识别期数后的版本标记', async () => {
   const parsed = await extractTitleSeasonEpisode('自然高光 第3期上 加更版 2026 1080p');
   assert.equal(parsed.episode, 3);
