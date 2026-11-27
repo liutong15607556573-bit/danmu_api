@@ -648,3 +648,17 @@ test('segment comment cache keys isolate full comments, platforms, and time rang
   assert.notEqual(sameRange, noRange, '缺少范围的请求不能误命中有范围的缓存');
   assert.notEqual(sameRange, base.url, '分段缓存必须与普通整集 URL 缓存隔离');
 });
+
+test('文件名中括号包裹的 Pure/Plus/Special/Live 版本标记可正确识别', async () => {
+  const cases = [
+    ['Natural.High.S04E03.(Pure).2026.1080p.WEB-DL.H265', 'pure'],
+    ['Natural.High.S04E03.(Plus).2026.1080p.WEB-DL.H265', 'plus'],
+    ['Natural.High.S04E03.(Special).2026.1080p.WEB-DL.H265', 'special'],
+    ['Natural.High.S04E03.(Live).2026.1080p.WEB-DL.H265', 'live'],
+    ['自然高光 第3期（加更版）2026 1080p', 'plus'],
+  ];
+  for (const [filename, edition] of cases) {
+    const parsed = await extractTitleSeasonEpisode(filename);
+    assert.equal(parsed.edition, edition, filename);
+  }
+});
