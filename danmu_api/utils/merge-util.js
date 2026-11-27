@@ -3735,130 +3735,81 @@ export function mergeDanmakuList(listA, listB) {
  * @returns {Array<Array<Object>>} 对齐后的各源弹幕数组（原地修改并返回）
  */
 export function alignSourceTimelines(results, sourceNames, realIds, minMatchRatio = 0.8, offsetThreshold = 1) {
-    if (!Array.isArray(results) || !Array.isArray(sourceNames) || results.length < 2) return results;
-
-    const textCounts = results.map((list) => {
-        const counts = new Map();
-        (Array.isArray(list) ? list : []).forEach(item => {
-            const text = normalizeText(getDanmuText(item));
-            if (text) counts.set(text, (counts.get(text) || 0) + 1);
-        });
-        return counts;
-    });
-
-    // 选择跨来源唯一文本锚点最多的参照源，不绑定特定平台。
-    const overlapScore = (index) => {
-        let score = 0;
-        for (const [text, count] of textCounts[index]) {
-            if (count === 1 && textCounts.some((other, otherIndex) =>
-                otherIndex !== index && other.get(text) === 1)) score++;
-        }
-        return score;
-    };
-    let referenceIndex = -1;
-    for (let i = 0; i < results.length; i++) {
-        if (!Array.isArray(results[i]) || results[i].length === 0) continue;
-        if (referenceIndex < 0 || overlapScore(i) > overlapScore(referenceIndex) ||
-            (overlapScore(i) === overlapScore(referenceIndex) && results[i].length > results[referenceIndex].length)) {
-            referenceIndex = i;
-        }
-    }
-    if (referenceIndex < 0 || overlapScore(referenceIndex) === 0) {
-        log("info", "[merge][aligntimeline] 没有足够的共同弹幕锚点，跳过时间轴校准");
+    const dandanIndex = sourceNames.indexOf('dandan');
+    if (dandanIndex === -1 || !results[dandanIndex]?.length) {
+        log("info", "[merge][aligntimeline] 无 dandan 源或无数据，跳过时间轴对齐");
         return results;
     }
 
-    const referenceName = sourceNames[referenceIndex] || String(referenceIndex);
-    const referenceTimes = new Map();
-    results[referenceIndex].forEach(item => {
-        const text = normalizeText(getDanmuText(item));
-        const time = getDanmuTime(item);
-        if (!text || !Number.isFinite(time)) return;
-        if (!referenceTimes.has(text)) referenceTimes.set(text, []);
-        referenceTimes.get(text).push(time);
+    const dandanList       = results[dandanIndex];
+    const dandanTotalCount = dandanList.length;
+    // 构建 dandan 弹幕文本→最早时间 的 Map（同文本取最早时间戳）
+    const dandanTextMap    = new Map();
+    dandanList.forEach(dd => {
+        const text = normalizeText(getDanmuText(dd));
+        const time = getDanmuTime(dd);
+        if (text && (!dandanTextMap.has(text) || time < dandanTextMap.get(text))) {
+            dandanTextMap.set(text, time);
+        }
     });
-    log("info", `[merge][aligntimeline] 选择 ${referenceName}:${realIds?.[referenceIndex] || ''} 作为共同内容参照`);
 
     results.forEach((list, idx) => {
-        if (idx === referenceIndex || !Array.isArray(list) || !list.length) return;
-        const sourceName = sourceNames[idx] || String(idx);
-        const sourceTimes = new Map();
-        list.forEach(item => {
-            const text = normalizeText(getDanmuText(item));
-            const time = getDanmuTime(item);
-            if (!text || !Number.isFinite(time)) return;
-            if (!sourceTimes.has(text)) sourceTimes.set(text, []);
-            sourceTimes.get(text).push(time);
-        });
+        const sourceName = sourceNames[idx];
+        if (sourceName === 'dandan' || !list?.length) return;
 
-        const anchors = [];
-        for (const [text, times] of sourceTimes) {
-            const reference = referenceTimes.get(text);
-            if (times.length === 1 && reference?.length === 1) {
-                anchors.push({ sourceTime: times[0], referenceTime: reference[0], offset: times[0] - reference[0] });
-            }
-        }
-        anchors.sort((a, b) => a.sourceTime - b.sourceTime);
-        if (anchors.length < 2) {
-            log("info", `[merge][aligntimeline] ${sourceName} 唯一文本锚点不足，跳过校准`);
-            return;
-        }
+        const offsetCounts = new Map();
+        const parsedCache  = [];
+        let matchCount     = 0;
 
-        // 若锚点顺序发生倒置，说明可能匹配到不同剪辑/重复片段，不能安全校准。
-        for (let i = 1; i < anchors.length; i++) {
-            if (anchors[i].referenceTime <= anchors[i - 1].referenceTime) {
-                log("info", `[merge][aligntimeline] ${sourceName} 锚点顺序不一致，跳过校准`);
-                return;
-            }
-        }
-
-        // 将时间偏移相近且连续的锚点分组；剪掉广告后，偏移会在剪辑点发生阶跃变化。
-        const rawGroups = [];
-        for (const anchor of anchors) {
-            const current = rawGroups[rawGroups.length - 1];
-            if (!current || Math.abs(anchor.offset - current[current.length - 1].offset) > 2) {
-                rawGroups.push([anchor]);
-            } else {
-                current.push(anchor);
-            }
-        }
-        const validGroups = rawGroups.filter(group => group.length >= 2);
-        const supportedAnchorCount = validGroups.reduce((sum, group) => sum + group.length, 0);
-        if (validGroups.length === 0 || supportedAnchorCount / anchors.length < minMatchRatio) {
-            log("info", `[merge][aligntimeline] ${sourceName} 分段锚点证据不足（${supportedAnchorCount}/${anchors.length}），跳过校准`);
-            return;
-        }
-
-        const segments = validGroups.map(group => {
-            const offsets = group.map(anchor => anchor.offset).sort((a, b) => a - b);
-            const middle = Math.floor(offsets.length / 2);
-            const offset = offsets.length % 2 ? offsets[middle] : (offsets[middle - 1] + offsets[middle]) / 2;
-            return {
-                start: group[0].sourceTime,
-                end: group[group.length - 1].sourceTime,
-                offset,
-                anchorCount: group.length
-            };
-        });
-
-        // 只在每段实际锚点覆盖区间内校准；相邻分段之间的无证据区间保持原样。
-        const minTime = segments[0].start;
-        const maxTime = segments[segments.length - 1].end;
-        let corrected = 0;
+        // 遍历当前源，统计每个偏移量的投票数
         list.forEach(danmu => {
+            const text = normalizeText(getDanmuText(danmu));
             const time = getDanmuTime(danmu);
-            if (!Number.isFinite(time) || time < minTime || time > maxTime) return;
-            const segment = segments.find(item => time >= item.start && time <= item.end);
-            if (!segment) return;
-            const offset = segment.offset;
-            if (Math.abs(offset) < offsetThreshold) return;
-            const targetTime = Math.max(0, time - offset);
-            if (typeof danmu.p === 'string') danmu.p = danmu.p.replace(/^[^,]+(?=,)/, targetTime.toFixed(2));
-            if (danmu.t != null) danmu.t = targetTime;
-            if (typeof danmu.progress === 'number') danmu.progress = Math.round(targetTime * 1000);
-            corrected++;
+            parsedCache.push({ danmu, time });
+            if (text && dandanTextMap.has(text)) {
+                matchCount++;
+                const offset = Math.round(time - dandanTextMap.get(text));
+                offsetCounts.set(offset, (offsetCounts.get(offset) || 0) + 1);
+            }
         });
-        log("info", `[merge][aligntimeline] ${sourceName} 按 ${segments.length} 个时间段相对 ${referenceName} 校准，覆盖锚点范围 ${minTime}-${maxTime}s，处理 ${corrected} 条弹幕`);
+
+        // 找出得票最多的偏移量
+        let bestOffset = 0, maxCount = 0;
+        offsetCounts.forEach((count, offset) => {
+            if (count > maxCount) { maxCount = count; bestOffset = offset; }
+        });
+
+        const minCount         = Math.min(dandanTotalCount, list.length);
+        const effectiveRatio   = maxCount / minCount;
+        const consensusRatio   = matchCount > 0 ? maxCount / matchCount : 0;
+
+        // 匹配率或集中度过低，跳过此次对齐
+        if ((matchCount / minCount) < minMatchRatio || effectiveRatio < 0.05 || consensusRatio < 0.15) {
+            log("info", `[merge][aligntimeline] ${sourceName}:${realIds[idx]} 匹配率或集中度过低 (有效:${(effectiveRatio * 100).toFixed(1)}%, 集中度:${(consensusRatio * 100).toFixed(1)}%)，跳过对齐`);
+            return;
+        }
+        // 偏移量低于触发阈值，无需对齐
+        if (Math.abs(bestOffset) < offsetThreshold) {
+            log("info", `[merge][aligntimeline] ${sourceName}:${realIds[idx]} 最佳偏移 ${bestOffset}s 低于阈值，无需对齐`);
+            return;
+        }
+
+        log("info", `[merge][aligntimeline] ${sourceName}:${realIds[idx]} 应用偏移 ${bestOffset}s (获 ${maxCount} 票)`);
+
+        // 将偏移量应用到该源所有弹幕（支持三种时间戳格式的原地修改）
+        parsedCache.forEach(({ danmu, time }) => {
+            const targetTime = Math.max(0, time - bestOffset);
+            if (typeof danmu.p === 'string') {
+                danmu.p = danmu.p.replace(/^[^,]+(?=,)/, targetTime.toFixed(2));
+            }
+            if (danmu.t != null) {
+                danmu.t = targetTime;
+            }
+            if (typeof danmu.progress === 'number') {
+                danmu.progress = Math.round(targetTime * 1000);
+            }
+        });
     });
+
     return results;
 }
