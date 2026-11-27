@@ -72,6 +72,10 @@ test('tencent 标题字段规范化与兜底', () => {
     '兰香如故 第1集'
   );
   assert.equal(
+    source.buildEpisodeTitle({ playTitle: '第01期上', videoSubtitle: '周深教孟子义唱歌' }),
+    '第1期上 周深教孟子义唱歌'
+  );
+  assert.equal(
     source.buildEpisodeTitle({ unionTitle: '兰香如故_002', videoSubtitle: '标题' }),
     '兰香如故 第2集 标题'
   );
