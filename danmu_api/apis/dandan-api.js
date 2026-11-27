@@ -1436,9 +1436,9 @@ function groupEpisodeAlternatives(episodes, movie = false, numberFor = null) {
     const taggedTitle = episode.episodeTitle ?? episode.title ?? '';
     const title = stripEpisodePlatform(taggedTitle);
     const number = numberFor?.(episode, index) ?? extractEpisodeNumberFromTitle(title, true);
-    const issue = number === null ? null : /第\s*\d+\s*期/.exec(title);
+    const issue = number === null ? null : /第\s*[0-9一二三四五六七八九十百千万]+\s*期/.exec(title);
     const suffix = issue && title.slice(issue.index + issue[0].length).trim();
-    const part = extractEpisodePartFromTitle(title);
+    const part = issue ? extractEpisodePartFromTitle(title) : null;
     const named = number === null && !movie && Boolean(title);
     const key = part ? `issue:${number}:${part}` : number ?? (movie ? 'movie' : named ? `title:${title}` : `untitled:${index}`);
     return { key, number, issue, part, named, source: extractEpisodeTitle(taggedTitle) };
