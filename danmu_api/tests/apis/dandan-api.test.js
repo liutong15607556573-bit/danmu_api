@@ -48,6 +48,12 @@ test('文件名版本标记识别 Pure/Plus/Special/Live，忽略清晰度编码
   }
 });
 
+test('中文综艺第N期文件名也能识别期数后的版本标记', async () => {
+  const parsed = await extractTitleSeasonEpisode('自然高光 第3期上 加更版 2026 1080p');
+  assert.equal(parsed.episode, 3);
+  assert.equal(parsed.edition, 'plus');
+});
+
 test('版本筛选严格隔离特殊版，不让普通版命中特殊版', () => {
   const episodes = [
     { episodeId: 'standard', episodeTitle: '第3集 正片' },
