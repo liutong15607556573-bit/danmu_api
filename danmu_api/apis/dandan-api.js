@@ -302,10 +302,10 @@ export function resolveEpisodeCount(declaredCount, availableCount) {
 export function classifyEpisodeEdition(value) {
   const text = String(value || '').toLowerCase();
   const patterns = [
-    ['pure', /(?:^|[.\\s_\\-])(?:pure|uncut)(?=$|[.\\s_\\-])|纯享版|纯享/i],
-    ['plus', /(?:^|[.\\s_\\-])(?:plus|extra)(?=$|[.\\s_\\-])|加更版|加更/i],
-    ['special', /(?:^|[.\\s_\\-])(?:special|sp)(?=$|[.\\s_\\-])|特辑|特别篇/i],
-    ['live', /(?:^|[.\\s_\\-])(?:live|concert)(?=$|[.\\s_\\-])|直播回放|直播/i],
+    ['pure', /(?:^|[.\s_\\-])(?:pure|uncut)(?=$|[.\s_\\-])|纯享版|纯享/i],
+    ['plus', /(?:^|[.\s_\\-])(?:plus|extra)(?=$|[.\s_\\-])|加更版|加更/i],
+    ['special', /(?:^|[.\s_\\-])(?:special|sp)(?=$|[.\s_\\-])|特辑|特别篇/i],
+    ['live', /(?:^|[.\s_\\-])(?:live|concert)(?=$|[.\s_\\-])|直播回放|直播/i],
   ];
   for (const [edition, pattern] of patterns) if (pattern.test(text)) return edition;
   return 'standard';
@@ -2485,7 +2485,7 @@ export async function extractTitleSeasonEpisode(cleanFileName) {
   }
 
   log("info", "[system] [match] Parsed title, season, episode, year", {title, season, episode, year});
-  const editionSuffix = cleanFileName.match(/S\\d+E\\d+([.\\s_-].*)?$/i)?.[1] || cleanFileName.match(/第\\s*[0-9一二三四五六七八九十百千万]+\\s*期([.\\s_-].*)?$/i)?.[1] || '';
+  const editionSuffix = cleanFileName.match(/S\d+E\d+([.\s_-].*)?$/i)?.[1] || cleanFileName.match(/第\s*[0-9一二三四五六七八九十百千万]+\s*期([.\s_-].*)?$/i)?.[1] || '';
   const edition = classifyEpisodeEdition(editionSuffix);
   return {title, requestTitle, season, episode, year, edition};
 }
