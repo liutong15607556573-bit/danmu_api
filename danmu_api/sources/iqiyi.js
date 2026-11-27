@@ -1,7 +1,7 @@
 import BaseSource from './base.js';
 import { log } from "../utils/log-util.js";
 import { buildQueryString, httpGet} from "../utils/http-util.js";
-import { printFirst200Chars, titleMatches, normalizeTitleForMatch, getExplicitSeasonNumber, extractSeasonNumberFromAnimeTitle, extractEpisodeNumberFromTitle, extractAnimeTitle } from "../utils/common-util.js";
+import { printFirst200Chars, titleMatches, normalizeTitleForMatch, getExplicitSeasonNumber, extractSeasonNumberFromAnimeTitle, extractEpisodeNumberFromTitle, extractAnimeTitle, stripVarietyEpisodeMarker } from "../utils/common-util.js";
 import { md5, convertToAsciiSum, decodeHtmlEntities, base64ToBytes, decompressBrotli, utf8BytesToString } from "../utils/codec-util.js";
 import { generateValidStartDate } from "../utils/time-util.js";
 import { addAnime, removeEarliestAnime } from "../utils/cache-util.js";
@@ -588,17 +588,18 @@ export default class IqiyiSource extends BaseSource {
    * @param {number|null} order - 集号
    * @returns {string} 含集数的分集标题
    */
-  _ensureEpisodeNumber(title, animeTitle, order) {
+  _ensureEpisodeNumber(title, animeTitle, order, mediaType = '') {
     if (extractEpisodeNumberFromTitle(title) !== null) return title;
     const episodeNumber = this._resolveEpisodeOrder(order);
     if (episodeNumber === null) return title;
+    const episodeUnit = String(mediaType).includes('综艺') ? '期' : '集';
     // 作品名去掉年份与类型后缀后再与分集标题比对，避免拼接出来的名字对不上
     const animeName = extractAnimeTitle(animeTitle || "");
     const prefix = animeName && title.startsWith(animeName) ? animeName : "";
     const rest = prefix ? title.slice(prefix.length).trim() : title;
     return prefix
-      ? `${prefix} 第${episodeNumber}集 ${rest}`.trim()
-      : `第${episodeNumber}集 ${rest}`.trim();
+      ? `${prefix} 第${episodeNumber}${episodeUnit} ${rest}`.trim()
+      : `第${episodeNumber}${episodeUnit} ${rest}`.trim();
   }
 
   /**
@@ -776,7 +777,11 @@ export default class IqiyiSource extends BaseSource {
       return [];
     }
 
-    let filteredAnimes = sourceAnimes.filter(s => titleMatches(s.title, queryTitle, querySeason));
+    let filteredAnimes = sourceAnimes.filter(s => {
+      const isVariety = String(s.type || '').includes('综艺');
+      const matchTitle = isVariety ? stripVarietyEpisodeMarker(queryTitle) : queryTitle;
+      return titleMatches(s.title, matchTitle, isVariety ? null : querySeason);
+    });
 
     // 提取搜索词中的明确季度信息或使用传入的季度参数
     const resolvedQuerySeason = querySeason !== null ? querySeason : getExplicitSeasonNumber(queryTitle);
@@ -785,6 +790,7 @@ export default class IqiyiSource extends BaseSource {
     if (resolvedQuerySeason !== null) {
       const firstSeasonTitle = resolvedQuerySeason === 1 ? normalizeTitleForMatch(queryTitle).toLowerCase() : null;
       const seasonFiltered = filteredAnimes.filter(anime => {
+        if (String(anime.type || '').includes('综艺')) return true;
         const { season } = extractSeasonNumberFromAnimeTitle(anime.title);
         if (season === resolvedQuerySeason || (resolvedQuerySeason === 1 && season === null)) return true;
         return firstSeasonTitle && normalizeTitleForMatch(anime.title).toLowerCase() === firstSeasonTitle
@@ -803,7 +809,8 @@ export default class IqiyiSource extends BaseSource {
 
     const processIqiyiAnimes = await Promise.all(filteredAnimes.map(async (anime) => {
         try {
-          const eps = await this.getEpisodes(anime.mediaId, resolvedQuerySeason, seasonAlbumCache);
+          const animeSeason = String(anime.type || '').includes('综艺') ? null : resolvedQuerySeason;
+          const eps = await this.getEpisodes(anime.mediaId, animeSeason, seasonAlbumCache);
 
           // 格式化分集列表
           const links = [];
@@ -813,7 +820,7 @@ export default class IqiyiSource extends BaseSource {
               // 接口未声明集数顺序时按列表位置编号
               "name": (ep.order ?? index + 1).toString(),
               "url": fullUrl,
-              "title": `【qiyi】 ${this._ensureEpisodeNumber(ep.title, anime.title, ep.order)}`
+              "title": `【qiyi】 ${this._ensureEpisodeNumber(ep.title, anime.title, ep.order, anime.type)}`
             });
           }
 
