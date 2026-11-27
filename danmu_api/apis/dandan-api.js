@@ -299,6 +299,54 @@ export function resolveEpisodeCount(declaredCount, availableCount) {
 }
 
 // 按集标题过滤剧集
+export function classifyEpisodeEdition(value) {
+  // 只分析分集标记后的版本短区间；年份、清晰度、编码、音轨和发布组均属于媒体元数据。
+  const text = String(value || '').split(/(?:^|[.\s_-])(?:19|20)\d{2}(?=$|[.\s_-])|(?:^|[.\s_-])(?:2160p|1440p|1080p|720p|480p|4k|8k|web[-_. ]?(?:dl|rip)|blu[-_. ]?ray|h\.?26[45]|hevc|avc|x26[45]|hdr(?:10)?|dolby[-_. ]?vision|10bit|aac|ddp|dts|remux)(?=$|[.\s_-])/i)[0].toLowerCase();
+  const patterns = [
+    ['pure', /(?:^|[.\s_-])(?:pure|uncut)(?=$|[.\s_-])|纯享版|纯享/i],
+    ['plus', /(?:^|[.\s_-])(?:plus|extra)(?=$|[.\s_-])|加更版|加更/i],
+    // 不把含糊的 SP 缩写当作 Special，避免发布组/普通词误判。
+    ['special', /(?:^|[.\s_-])special(?=$|[.\s_-])|特辑|特别篇/i],
+    ['live', /(?:^|[.\s_-])(?:live|concert)(?=$|[.\s_-])|直播回放|直播/i],
+  ];
+  for (const [edition, pattern] of patterns) if (pattern.test(text)) return edition;
+  return 'standard';
+}
+
+// 仅从标题末尾的版本标签识别，避免正文含有 Special、Live 等词时误判。
+export function detectExplicitEpisodeEdition(value) {
+  const text = String(value || '').trim();
+  const suffixPatterns = [
+    ['pure', /(?:^|[.\s_-])(?:pure|uncut)(?:\s*[)】\]]?)$/i, /纯享版?$/],
+    ['plus', /(?:^|[.\s_-])(?:plus|extra)(?:\s*[)】\]]?)$/i, /加更版?$/],
+    ['special', /(?:^|[.\s_-])(?:special|sp)(?:\s*[)】\]]?)$/i, /特辑|特别篇$/],
+    ['live', /(?:^|[.\s_-])(?:live|concert)(?:\s*[)】\]]?)$/i, /直播回放|直播版?$/],
+  ];
+  for (const [edition, english, chinese] of suffixPatterns) {
+    if (english.test(text) || chinese.test(text)) return edition;
+  }
+  if (/(?:^|[.\s_-])standard(?:\s*[)】\]]?)$/i.test(text) || /(?:正片|普通版|完整版|完整正片)$/.test(text)) return 'standard';
+  return null;
+}
+
+// 节目标题正文可能含有版本词；只有括号中的独立标签才作为节目级证据。
+export function detectAnimeTitleEdition(value) {
+  const text = String(value || '');
+  const match = text.match(/[（(\[【]\s*(pure|uncut|plus|extra|special|sp|live|concert|standard|纯享版?|加更版?|特辑|特别篇|直播回放|直播版?|正片|普通版|完整版)\s*[）)\]】]\s*$/i);
+  return match ? detectExplicitEpisodeEdition(match[1]) : null;
+}
+
+export function filterEpisodesByEdition(episodes, requestedEdition = 'standard', animeTitle = '') {
+  const requested = requestedEdition || 'standard';
+  const animeEdition = detectAnimeTitleEdition(animeTitle);
+  return (episodes || []).filter(episode => {
+    const episodeEdition = detectExplicitEpisodeEdition(episode?.episodeTitle ?? episode?.title ?? '');
+    const actualEdition = episodeEdition || animeEdition;
+    // 未标记候选仅可作为普通正片兼容兜底；特殊版本必须有明确证据。
+    return actualEdition ? actualEdition === requested : requested === 'standard';
+  });
+}
+
 export function filterEpisodesByTitle(episodes) {
   return episodes.filter(episode => !globals.episodeTitleFilter.test(episode.episodeTitle ?? episode.title));
 }
@@ -2040,7 +2088,7 @@ function findCrossSeasonEpisodeMap(searchData, title, year, season, episode, pla
   return { resEpisode: bestRes.episode, resAnime: bestRes.anime };
 }
 
-export async function matchAniAndEp(season, episode, year, searchData, title, req, platform, preferAnimeId, offsets, detailStore = null, hasTitlePreference = false, exactOnly = false) {
+export async function matchAniAndEp(season, episode, year, searchData, title, req, platform, preferAnimeId, offsets, detailStore = null, hasTitlePreference = false, exactOnly = false, edition = 'standard') {
   // 定义最佳匹配结果容器
   let bestRes = {
     anime: null,
@@ -2150,7 +2198,7 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
 
     if (hasSeasonEpisode(season, episode)) {
         // 剧集模式逻辑
-        const filteredTmpEpisodes = filterEpisodesByTitle(bangumiData.bangumi.episodes);
+        const filteredTmpEpisodes = filterEpisodesByEdition(filterEpisodesByTitle(bangumiData.bangumi.episodes), edition, anime.animeTitle);
         const options = { preferredPlatform: platform, sourceFallback: hasTitlePreference ? animePlatform(anime) : null, ordinalOnly: hasTitlePreference, exactOnly, includePeriod: season === 0, groups: searchData.seasonGroups?.get(anime) };
         const filteredEpisodes = filterSameEpisodeTitle(filteredTmpEpisodes, options);
         
@@ -2265,7 +2313,7 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
   return { resEpisode: bestRes.episode, resAnime: bestRes.anime, candidates };
 }
 
-export async function fallbackMatchAniAndEp(searchData, req, season, episode, year, title, resEpisode, resAnime, offsets, detailStore = null, preference = null) {
+export async function fallbackMatchAniAndEp(searchData, req, season, episode, year, title, resEpisode, resAnime, offsets, detailStore = null, preference = null, edition = 'standard') {
   // 兜底先尝试季号与目标季一致的候选，全部落空后再退回不限季的取值逻辑，避免直接取到其它季的同集号
   const sameSeasonAnimes = [];
   const restAnimes = [];
@@ -2291,7 +2339,7 @@ export async function fallbackMatchAniAndEp(searchData, req, season, episode, ye
     log("info", "[system] [match]", bangumiData);
     if (hasSeasonEpisode(season, episode)) {
       // 过滤集标题正则条件的 episode
-      const filteredTmpEpisodes = filterEpisodesByTitle(bangumiData.bangumi.episodes);
+      const filteredTmpEpisodes = filterEpisodesByEdition(filterEpisodesByTitle(bangumiData.bangumi.episodes), edition, anime.animeTitle);
 
       // 过滤集标题一致的 episode，且保留首次出现的集标题的 episode
       const options = { ordinalOnly: Boolean(preference), includePeriod: season === 0, groups: searchData.seasonGroups?.get(anime) };
@@ -2322,7 +2370,7 @@ export async function fallbackMatchAniAndEp(searchData, req, season, episode, ye
 
   // 跨季兜底溢出查找逻辑
   let isSpillover = false;
-  if (!resEpisode && hasSeasonEpisode(season, episode)) {
+  if (!resEpisode && hasSeasonEpisode(season, episode) && edition === 'standard') {
     const spilloverRes = findCrossSeasonEpisodeMap(preference?.seriesData || searchData, title, year, season, episode, null, detailStore, preference);
     if (spilloverRes.resEpisode) {
       resEpisode = spilloverRes.resEpisode;
@@ -2383,7 +2431,7 @@ export async function extractTitleSeasonEpisode(cleanFileName) {
   const match = cleanFileName.match(regex);
   // 中文综艺文件名常用「节目名 第N期上/下」表示期数，不是「第N季」。
   // 先识别期数，避免把期数留在剧名里导致搜索不到节目，也避免误触发跨季匹配。
-  const varietyPeriodMatch = cleanFileName.match(/^(.*?)[.\s_-]*第\s*([0-9一二三四五六七八九十百千万]+)\s*期(?:上|下|中)?(?:[.\s_-].*)?$/i);
+  const varietyPeriodMatch = cleanFileName.match(/^(.*?)[.\s_-]*第\s*([0-9一二三四五六七八九十百千万]+)\s*期(?:上|下|中)?(?:[.\s_-（【(].*)?$/i);
 
   let title, season, episode, year;
 
@@ -2466,7 +2514,9 @@ export async function extractTitleSeasonEpisode(cleanFileName) {
   }
 
   log("info", "[system] [match] Parsed title, season, episode, year", {title, season, episode, year});
-  return {title, requestTitle, season, episode, year};
+  const editionSuffix = cleanFileName.match(/S\d+E\d+(.*)$/i)?.[1] || cleanFileName.match(/第\s*[0-9一二三四五六七八九十百千万]+\s*期(?:上|下|中)?(.*)$/i)?.[1] || '';
+  const edition = classifyEpisodeEdition(editionSuffix);
+  return {title, requestTitle, season, episode, year, edition};
 }
 
 export function buildSearchAnimeUrl(baseUrl, keyword, season, episode) {
@@ -2484,7 +2534,7 @@ export function buildSearchAnimeUrl(baseUrl, keyword, season, episode) {
   return searchUrl;
 }
 
-async function selectAnimeMatch({ season, episode, year, searchData, title, req, dynamicPlatformOrder, preferAnimeId, offsets, detailStore, preference }) {
+async function selectAnimeMatch({ season, episode, year, searchData, title, req, dynamicPlatformOrder, preferAnimeId, offsets, detailStore, preference, edition }) {
   const hasTitlePreference = Boolean(preference);
   let directData = searchData;
   let seasonIndexes;
@@ -2497,7 +2547,12 @@ async function selectAnimeMatch({ season, episode, year, searchData, title, req,
   const aiMatchResult = await matchAniAndEpByAi(
     season, episode, year, directData, title, req, dynamicPlatformOrder, preferAnimeId, detailStore, hasTitlePreference
   );
-  if (aiMatchResult.resAnime && aiMatchResult.resEpisode) {
+  const aiEpisodeEdition = detectExplicitEpisodeEdition(aiMatchResult.resEpisode?.episodeTitle)
+    || detectAnimeTitleEdition(aiMatchResult.resAnime?.animeTitle);
+  const aiEditionMatches = aiEpisodeEdition
+    ? aiEpisodeEdition === (edition || 'standard')
+    : (edition || 'standard') === 'standard';
+  if (aiMatchResult.resAnime && aiMatchResult.resEpisode && aiEditionMatches) {
     // AI 直接给出结果，没有逐平台评分
     return { resAnime: aiMatchResult.resAnime, resEpisode: aiMatchResult.resEpisode, spilloverMatched: false, platformAttempts: [] };
   }
@@ -2506,7 +2561,7 @@ async function selectAnimeMatch({ season, episode, year, searchData, title, req,
   for (const exactOnly of (preference && hasSeasonEpisode(season, episode) ? [true, false] : [false])) {
     for (const platform of dynamicPlatformOrder) {
       const matched = await matchAniAndEp(
-        season, episode, year, directData, title, req, platform, preferAnimeId, offsets, detailStore, hasTitlePreference, exactOnly
+        season, episode, year, directData, title, req, platform, preferAnimeId, offsets, detailStore, hasTitlePreference, exactOnly, edition
       );
       platformAttempts.push({
         platform: platform || '默认',
@@ -2522,12 +2577,12 @@ async function selectAnimeMatch({ season, episode, year, searchData, title, req,
 
   const { resAnime, resEpisode, isSpillover } = await fallbackMatchAniAndEp(
     directData, req, season, episode, year, title, null, null, offsets, detailStore,
-    preference && { seriesData: searchData, platforms: dynamicPlatformOrder, seasonIndexes, matchesSeries: preference.matchesSeries }
+    preference && { seriesData: searchData, platforms: dynamicPlatformOrder, seasonIndexes, matchesSeries: preference.matchesSeries }, edition
   );
   return { resAnime, resEpisode, spilloverMatched: isSpillover, platformAttempts };
 }
 
-async function executeMatchAttempt({ req, title, preference, season, episode, year, preferredPlatform, preferAnimeId, preferSource, offsets, mapping }) {
+async function executeMatchAttempt({ req, title, preference, season, episode, year, preferredPlatform, preferAnimeId, preferSource, offsets, mapping, edition }) {
   const dynamicPlatformOrder = createDynamicPlatformOrder(mapping?.targetPlatform, preferredPlatform, preference?.platform);
   const targetPlatform = dynamicPlatformOrder.length > 0 ? dynamicPlatformOrder[0] : null;
   const detailStore = new Map();
@@ -2580,7 +2635,8 @@ async function executeMatchAttempt({ req, title, preference, season, episode, ye
       dynamicPlatformOrder,
       preferAnimeId,
       offsets,
-      detailStore
+      detailStore,
+      edition
     });
     if (selected.resAnime && selected.resEpisode) {
       if (mapping && pass.label === 'qualified') {
@@ -2731,8 +2787,9 @@ export async function matchAnime(url, req, clientIp) {
     const originalSeason = parsed.season;
     const originalEpisode = parsed.episode;
     const originalYear = parsed.year;
+    const edition = parsed.edition || 'standard';
 
-    traceStep('匹配·文件名解析', matchParseStartedAt, { status: 'ok', inputs: { fileName }, outputs: { title: parsed.title, season: parsed.season, episode: parsed.episode, year: parsed.year } });
+    traceStep('匹配·文件名解析', matchParseStartedAt, { status: 'ok', inputs: { fileName }, outputs: { title: parsed.title, season: parsed.season, episode: parsed.episode, year: parsed.year, edition } });
 
     const preferenceTitles = [...new Set([originalTitle, parsed.title].filter(Boolean))];
     // 匹配·映射表加载 阶段开始
@@ -2817,7 +2874,8 @@ export async function matchAnime(url, req, clientIp) {
         preferAnimeId: null,
         preferSource: null,
         offsets: null,
-        mapping
+        mapping,
+        edition
       });
       mappingApplied = Boolean(attempt.resAnime && attempt.resEpisode);
       if (!mappingApplied) {
@@ -2843,7 +2901,8 @@ export async function matchAnime(url, req, clientIp) {
         preferAnimeId,
         preferSource,
         offsets,
-        mapping: null
+        mapping: null,
+        edition
       });
     }
 
@@ -3443,7 +3502,7 @@ async function fetchMergedComments(url, animeTitle, commentId) {
   );
   const results = indexedResults.flat().sort((a, b) => a.index - b.index).map(x => x.data);
   
-  // 调用以dandan为基准的跨源时间轴对齐函数（仅当存在 dandan 源时执行）
+  // 基于跨来源共有的唯一文本锚点校准时间轴，不绑定特定平台
   alignSourceTimelines(results, sourceNames, realIds);
 
   // 按来源分别应用弹幕时间偏移（对齐后、合并前）
