@@ -402,13 +402,13 @@ export function convertToDanmakuJson(contents, platform) {
       // 处理新格式的弹幕对象
       time = (item.progress / 1000).toFixed(2);
       mode = item.mode || 1;
-      color = item.color || 16777215;
+      color = item.color ?? 16777215;
       m = item.content;
     } else if ("timepoint" in item) {
       // 处理对象数组输入
       time = parseFloat(item.timepoint).toFixed(2);
-      mode = item.ct || 0;
-      color = item.color || 16777215;
+      mode = item.ct ?? 0;
+      color = item.color ?? 16777215;
       m = item.content;
     } else {
       if (!("p" in item)) {

@@ -53,6 +53,7 @@ const sohuSource = getSourceByKey('sohu');
 const leshiSource = getSourceByKey('leshi');
 const xiguaSource = getSourceByKey('xigua');
 const maiduiduiSource = getSourceByKey('maiduidui');
+const fourKSource = getSourceByKey('4k');
 const aiyifanSource = getSourceByKey('aiyifan');
 const hongguoSource = getSourceByKey('hongguo');
 const animekoSource = getSourceByKey('animeko');
@@ -190,6 +191,8 @@ async function resolveUrlDuration(url) {
       segmentResult = await sourceLogContext.run('xigua', () => xiguaSource.getComments(targetUrl, 'xigua', true));
     } else if (targetUrl.includes('.mddcloud.com.cn')) {
       segmentResult = await sourceLogContext.run('maiduidui', () => maiduiduiSource.getComments(targetUrl, 'maiduidui', true));
+    } else if (/(^|\/\/)(?:www\.)?4kvm\.net(?:[:/]|$)/i.test(targetUrl)) {
+      segmentResult = await sourceLogContext.run('4k', () => fourKSource.getComments(targetUrl, '4k', true));
     } else if (targetUrl.includes('.yfsp.tv')) {
       segmentResult = await sourceLogContext.run('aiyifan', () => aiyifanSource.getComments(targetUrl, 'aiyifan', true));
     }
@@ -3621,6 +3624,8 @@ export async function getComment(path, queryFormat, segmentFlag, clientIp, inclu
       danmus = await sourceLogContext.run('xigua', () => xiguaSource.getComments(commentUrl, plat, segmentFlag));
     } else if (url.includes('.mddcloud.com.cn')) {
       danmus = await sourceLogContext.run('maiduidui', () => maiduiduiSource.getComments(commentUrl, plat, segmentFlag));
+    } else if (/(^|\/\/)(?:www\.)?4kvm\.net(?:[:/]|$)/i.test(commentUrl)) {
+      danmus = await sourceLogContext.run('4k', () => fourKSource.getComments(commentUrl, '4k', segmentFlag));
     } else if (url.includes('.yfsp.tv')) {
       danmus = await sourceLogContext.run('aiyifan', () => aiyifanSource.getComments(commentUrl, plat, segmentFlag));
     } else if (isHongguoUrl) {
@@ -3955,6 +3960,8 @@ export async function getCommentByUrl(videoUrl, queryFormat, segmentFlag, includ
       danmus = await sourceLogContext.run('xigua', () => xiguaSource.getComments(cleanUrl, "xigua", segmentFlag));
     } else if (url.includes('.mddcloud.com.cn')) {
       danmus = await sourceLogContext.run('maiduidui', () => maiduiduiSource.getComments(cleanUrl, "maiduidui", segmentFlag));
+    } else if (/(^|\/\/)(?:www\.)?4kvm\.net(?:[:/]|$)/i.test(cleanUrl)) {
+      danmus = await sourceLogContext.run('4k', () => fourKSource.getComments(cleanUrl, "4k", segmentFlag));
     } else if (url.includes('.yfsp.tv')) {
       danmus = await sourceLogContext.run('aiyifan', () => aiyifanSource.getComments(cleanUrl, "aiyifan", segmentFlag));
     } else if (isHongguoPlayerUrl(cleanUrl)) {
@@ -4108,6 +4115,8 @@ export async function getSegmentComment(segment, queryFormat) {
       danmus = await sourceLogContext.run('xigua', () => xiguaSource.getSegmentComments(segment));
     } else if (platform === "maiduidui") {
       danmus = await sourceLogContext.run('maiduidui', () => maiduiduiSource.getSegmentComments(segment));
+    } else if (platform === "4k") {
+      danmus = await sourceLogContext.run('4k', () => fourKSource.getSegmentComments(segment));
     } else if (platform === "aiyifan") {
       danmus = await sourceLogContext.run('aiyifan', () => aiyifanSource.getSegmentComments(segment));
     } else if (platform === "hongguo") {

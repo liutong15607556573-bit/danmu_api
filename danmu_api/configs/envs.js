@@ -26,9 +26,9 @@ export class Envs {
   static RAW_ENV_KEYS = new Set(['ADMIN_TOKEN', 'AI_API_KEY', 'AI_MATCH_PROMPT', 'ANIME_TITLE_FILTER', 'AUTO_MATCH_MAPPING_TABLE', 'BLOCKED_WORDS', 'BILIBILI_COOKIE', 'COLOR_POOL', 'CUSTOM_MERGE_RULES', 'CUSTOM_SOURCE_API_URL', 'DANDANPLAY_ACCOUNT', 'DANDANPLAY_PASSWORD', 'DANMU_OFFSET', 'DANMU_PUSH_URL', 'DEPLOY_PLATFROM_ACCOUNT', 'DEPLOY_PLATFROM_PROJECT', 'DEPLOY_PLATFROM_TOKEN', 'DOUBAN_COOKIE', 'EPISODE_TITLE_FILTER', 'IP_BLACKLIST', 'LOCAL_REDIS_URL', 'OTHER_SERVER', 'PROXY_URL', 'TITLE_MAPPING_TABLE', 'TITLE_NOISE_FILTER', 'TITLE_PLATFORM_MAP', 'TMDB_API_KEY', 'TOKEN', 'UPSTASH_REDIS_REST_TOKEN', 'UPSTASH_REDIS_REST_URL', 'VOD_SERVERS']);
 
   static VOD_ALLOWED_PLATFORMS = ['qiyi', 'bilibili1', 'imgo', 'youku', 'qq', 'migu', 'sohu', 'leshi', 'xigua', 'maiduidui', 'aiyifan']; // vod允许的播放平台
-  static ALLOWED_PLATFORMS = ['qiyi', 'bilibili1', 'imgo', 'youku', 'qq', 'migu', 'renren', 'hanjutv', 'sohu', 'leshi', 'xigua', 'maiduidui', 'aiyifan', 'hongguo', 'dandan', 'bahamut', 'animeko', 'custom', 'acfun']; // 全部源允许的播放平台
-  static ALLOWED_SOURCES = ['360', 'vod', 'tmdb', 'douban', 'tencent', 'youku', 'iqiyi', 'imgo', 'bilibili', 'migu', 'renren', 'hanjutv', 'sohu', 'leshi', 'xigua', 'maiduidui', 'aiyifan', 'hongguo', 'dandan', 'bahamut', 'animeko', 'custom', 'local', 'acfun']; // 允许的源
-  static MERGE_ALLOWED_SOURCES = ['tencent', 'youku', 'iqiyi', 'imgo', 'bilibili', 'migu', 'renren', 'hanjutv', 'sohu', 'leshi', 'xigua', 'maiduidui', 'aiyifan', 'hongguo', 'dandan', 'bahamut', 'animeko', 'acfun']; // 允许的源合并
+  static ALLOWED_PLATFORMS = ['qiyi', 'bilibili1', 'imgo', 'youku', 'qq', 'migu', 'renren', 'hanjutv', 'sohu', 'leshi', 'xigua', 'maiduidui', '4k', 'aiyifan', 'hongguo', 'dandan', 'bahamut', 'animeko', 'custom', 'acfun']; // 全部源允许的播放平台
+  static ALLOWED_SOURCES = ['360', 'vod', 'tmdb', 'douban', 'tencent', 'youku', 'iqiyi', 'imgo', 'bilibili', 'migu', 'renren', 'hanjutv', 'sohu', 'leshi', 'xigua', 'maiduidui', '4k', 'aiyifan', 'hongguo', 'dandan', 'bahamut', 'animeko', 'custom', 'local', 'acfun']; // 允许的源
+  static MERGE_ALLOWED_SOURCES = ['tencent', 'youku', 'iqiyi', 'imgo', 'bilibili', 'migu', 'renren', 'hanjutv', 'sohu', 'leshi', 'xigua', 'maiduidui', '4k', 'aiyifan', 'hongguo', 'dandan', 'bahamut', 'animeko', 'custom', 'local', 'acfun']; // 允许的源合并
   static DEFAULT_AI_MATCH_PROMPT = `你是一个专业的影视匹配专家，你的的任务是根据用户提供的 JSON 数据，从候选动漫列表中匹配最符合条件的动漫及集数。
 
 输入字段说明：
@@ -228,14 +228,29 @@ export class Envs {
   static resolveSourceOrder() {
     let sourceOrder = this.get('SOURCE_ORDER', 'iqiyi,tencent,youku,douban,360,renren,hanjutv,acfun,tmdb,aiyifan', 'string');
 
-    const orderArr = sourceOrder
+    let orderArr = sourceOrder
       .split(',')
       .map(s => s.trim())
       .filter(s => this.ALLOWED_SOURCES.includes(s));
 
-    this.accessedEnvVars.set('SOURCE_ORDER', orderArr);
+    // 保留用户显式配置的有效项；默认回退项不写入用户配置快照。
+    const configuredOrderArr = [...orderArr];
 
-    return orderArr.length > 0 ? orderArr : ['iqiyi', 'tencent', 'youku', 'douban', '360', 'renren', 'hanjutv', 'acfun', 'tmdb', 'aiyifan'];
+    if (orderArr.length === 0) {
+      orderArr = ['iqiyi', 'tencent', 'youku', 'douban', '360', 'renren', 'hanjutv', 'acfun', 'tmdb', '4k', 'aiyifan'];
+    }
+
+    // 仅当当前顺序包含爱壹帆时，将4K影视插到它前面；
+    // 自定义顺序未启用爱壹帆时，不擅自增加其他源，保持用户原配置不变。
+    const aiyifanIndex = orderArr.indexOf('aiyifan');
+    if (aiyifanIndex >= 0) {
+      orderArr = orderArr.filter(key => key !== '4k');
+      const refreshedAiyifanIndex = orderArr.indexOf('aiyifan');
+      orderArr.splice(refreshedAiyifanIndex, 0, '4k');
+    }
+
+    this.accessedEnvVars.set('SOURCE_ORDER', configuredOrderArr);
+    return orderArr;
   }
 
   /**
