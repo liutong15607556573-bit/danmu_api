@@ -34,6 +34,7 @@ import LeshiSource from './leshi.js';
 import XiguaSource from './xigua.js';
 import MaiduiduiSource from './maiduidui.js';
 import AiyifanSource from './aiyifan.js';
+import FourKSource from './4k.js';
 import HongguoSource from './hongguo.js';
 import AnimekoSource from './animeko.js';
 import OtherSource from './other.js';
@@ -86,6 +87,7 @@ const SOURCE_REGISTRY = [
   { key: 'leshi',     logName: '',        factory: () => new LeshiSource(), deps: [], displayName: '乐视视频' },
   { key: 'xigua',     logName: '',        factory: () => new XiguaSource(), deps: [], displayName: '西瓜视频' },
   { key: 'maiduidui', logName: '',        factory: () => new MaiduiduiSource(), deps: [], displayName: '埋堆堆' },
+  { key: '4k',        logName: '',        factory: () => new FourKSource(), deps: [], displayName: '4K影视' },
   { key: 'aiyifan',   logName: '',        factory: () => new AiyifanSource(), deps: [], displayName: '爱壹帆' },
   { key: 'hongguo',   logName: '',        factory: () => new HongguoSource(), deps: [], displayName: '红果短剧' },
   { key: 'animeko',   logName: '',        factory: () => new AnimekoSource(), deps: [], displayName: 'Animeko' },
