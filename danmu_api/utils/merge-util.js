@@ -819,6 +819,57 @@ const LANG_DUB_LABELS = [
  * @param {string} title - 条目标题
  * @returns {string|null} 配音版本标识，无配音标识时为 null
  */
+const EPISODE_EDITION_LABELS = [
+    ['pure', /(?:^|[.\s_-])(?:pure|uncut)(?=$|[.\s_-])|纯享版|纯享/i],
+    ['plus', /(?:^|[.\s_-])(?:plus|extra)(?=$|[.\s_-])|加更版|加更/i],
+    ['special', /(?:^|[.\s_-])special(?=$|[.\s_-])|特辑|特别篇/i],
+    ['live', /(?:^|[.\s_-])(?:live|concert)(?=$|[.\s_-])|直播回放|直播版|直播/i],
+    ['standard', /(?:^|[.\s_-])standard(?=$|[.\s_-])|正片|普通版|完整版/i],
+];
+
+function getEditionLabel(text, bracketOnly = false) {
+    const value = String(text || '');
+    if (bracketOnly) {
+        const match = value.match(/[（(\[【]\s*(pure|uncut|plus|extra|special|sp|live|concert|standard|纯享版?|加更版?|特辑|特别篇|直播回放|直播版?|正片|普通版|完整版)\s*[）)\]】]/i);
+        if (!match) return null;
+        const token = match[1].toLowerCase();
+        if (/pure|uncut|纯享/.test(token)) return 'pure';
+        if (/plus|extra|加更/.test(token)) return 'plus';
+        if (/special|sp|特辑|特别篇/.test(token)) return 'special';
+        if (/live|concert|直播/.test(token)) return 'live';
+        return 'standard';
+    }
+    const normalized = value.replace(/^【[^】]+】\s*/, '').trim();
+    for (const [label, pattern] of EPISODE_EDITION_LABELS) if (pattern.test(normalized)) return label;
+    return null;
+}
+
+function hasConflictingEpisodeEditionEvidence(anime) {
+    const animeEdition = getEditionLabel(anime?.animeTitle, true);
+    const linkEditions = (anime?.links || [])
+        .map(link => getEditionLabel(link?.title || link?.name))
+        .filter(Boolean);
+    return Boolean(animeEdition && linkEditions.some(label => label !== animeEdition));
+}
+
+/**
+ * 剪辑版本证据不足时不跨来源拼接：仅允许双方都无版本标记，或双方节目标题明确标记同一版本。
+ * 若版本标记只出现在分集标题中，当前合并器无法可靠证明两侧每一集的剪辑身份，保守保留独立来源。
+ */
+export function areAnimeEditionsCompatible(primaryAnime, secondaryAnime) {
+    const primaryEdition = getEditionLabel(primaryAnime?.animeTitle, true);
+    const secondaryEdition = getEditionLabel(secondaryAnime?.animeTitle, true);
+    const primaryHasEpisodeMarkers = (primaryAnime?.links || []).some(link => getEditionLabel(link?.title || link?.name));
+    const secondaryHasEpisodeMarkers = (secondaryAnime?.links || []).some(link => getEditionLabel(link?.title || link?.name));
+
+    if (hasConflictingEpisodeEditionEvidence(primaryAnime) || hasConflictingEpisodeEditionEvidence(secondaryAnime)) return false;
+    if (primaryEdition || secondaryEdition) {
+        return Boolean(primaryEdition && secondaryEdition && primaryEdition === secondaryEdition);
+    }
+    if (primaryHasEpisodeMarkers || secondaryHasEpisodeMarkers) return false;
+    return true;
+}
+
 function getDubVersionLabel(title) {
     const text = String(title || '');
     for (const { label, regex } of LANG_DUB_LABELS) {
@@ -2646,6 +2697,10 @@ async function processMergeTask(params) {
             if (a.source !== secSource) return false;
 
             // 映射表特权前置：必须位于 isPrimaryCollection 之前，防止合集特权绕过阻断规则
+            if (!areAnimeEditionsCompatible(pAnime, a)) {
+                log("warn", `${logPrefix} 跳过跨版本归并: [${currentPrimarySource}] ${pAnime.animeTitle} <-> [${a.source}] ${a.animeTitle}`);
+                return false;
+            }
             const rule = getMatchingCustomRule(pAnime, a);
             if (rule) {
                 if (rule.action === 'block') {
