@@ -126,6 +126,7 @@ test('common-util stripVarietyEpisodeMarker 去除期数和 SxxEyy 后缀', () =
   assert.equal(stripVarietyEpisodeMarker('奔跑吧 第1期上 周深教孟子义唱歌'), '奔跑吧');
   assert.equal(stripVarietyEpisodeMarker('奔跑吧 S09E01'), '奔跑吧');
   assert.equal(stripVarietyEpisodeMarker('奔跑吧'), '奔跑吧');
+  assert.equal(stripVarietyEpisodeMarker('快乐大本营 2020'), '快乐大本营 2020');
 });
 
 test('common-util extractAnimeTitle/extractEpisodeTitle/extractAnimeInfo 组合解析', () => {
