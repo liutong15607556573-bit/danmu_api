@@ -6,7 +6,7 @@ dotenv.config();
 
 import test from 'node:test';
 import assert from 'node:assert';
-import { extractTitleSeasonEpisode, buildSearchAnimeUrl, matchSeason, matchAniAndEp, fallbackMatchAniAndEp, filterSameEpisodeTitle, buildBangumiData, resolveEpisodeCount, applyEpisodeTitleFilter, filterEpisodesByTitle, filterEpisodesByEdition, classifyEpisodeEdition, detectExplicitEpisodeEdition, withAvailableEpisodeCount, buildMatchScoring, resolveSegmentCommentCacheKey } from '../../apis/dandan-api.js';
+import { extractTitleSeasonEpisode, buildSearchAnimeUrl, matchSeason, matchAniAndEp, fallbackMatchAniAndEp, filterSameEpisodeTitle, buildBangumiData, resolveEpisodeCount, applyEpisodeTitleFilter, filterEpisodesByTitle, filterEpisodesByEdition, classifyEpisodeEdition, detectExplicitEpisodeEdition, detectAnimeTitleEdition, withAvailableEpisodeCount, buildMatchScoring, resolveSegmentCommentCacheKey } from '../../apis/dandan-api.js';
 import { getSearchCache, setSearchCache } from '../../utils/cache-util.js';
 import { addFavorite, removeFavorite, saveFavorites } from '../../utils/favorite-util.js';
 import { Globals, globals } from '../../configs/globals.js';
@@ -105,6 +105,11 @@ test('版本筛选严格隔离特殊版，不让普通版命中特殊版', () =>
   assert.equal(detectExplicitEpisodeEdition('第3集 正片'), 'standard');
   assert.equal(detectExplicitEpisodeEdition('Special Investigation 第3集'), null, '集标题正文出现 Special 不应误判版本');
   assert.equal(detectExplicitEpisodeEdition('Natural High Live Concert 第3集'), null, '节目正文出现 Live 不应误判版本');
+  assert.equal(detectAnimeTitleEdition('Live With Kelly'), null, '节目正式名称包含 Live 不应误判');
+  assert.equal(detectAnimeTitleEdition('Special Forces'), null, '节目正式名称包含 Special 不应误判');
+  assert.equal(detectAnimeTitleEdition('Natural High Live'), null, '节目名称末尾普通 Live 单词不应误判');
+  assert.equal(detectAnimeTitleEdition('Natural High (Live)'), 'live', '节目标题括号中的 Live 标签应识别');
+  assert.equal(detectAnimeTitleEdition('Natural High - (Plus)'), 'plus', '节目标题括号中的 Plus 标签应识别');
   assert.deepEqual(
     filterEpisodesByEdition([{ episodeId: 'series-live', episodeTitle: '第3集' }], 'live', 'Natural High Live'),
     [],
