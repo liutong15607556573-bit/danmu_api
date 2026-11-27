@@ -2514,7 +2514,7 @@ export async function extractTitleSeasonEpisode(cleanFileName) {
   }
 
   log("info", "[system] [match] Parsed title, season, episode, year", {title, season, episode, year});
-  const editionSuffix = cleanFileName.match(/S\d+E\d+([.\s_-].*)?$/i)?.[1] || cleanFileName.match(/第\s*[0-9一二三四五六七八九十百千万]+\s*期(?:上|下|中)?([.\s_-].*)?$/i)?.[1] || '';
+  const editionSuffix = cleanFileName.match(/S\d+E\d+(.*)$/i)?.[1] || cleanFileName.match(/第\s*[0-9一二三四五六七八九十百千万]+\s*期(?:上|下|中)?(.*)$/i)?.[1] || '';
   const edition = classifyEpisodeEdition(editionSuffix);
   return {title, requestTitle, season, episode, year, edition};
 }
