@@ -37,6 +37,7 @@ test('综艺上下半期与加更必须区分，不能只按期数合并', async
   assert.equal(extractEpisodePartFromTitle('【qq】 第1期上：出发团集合'), '上');
   assert.equal(extractEpisodePartFromTitle('【qq】 第1期下：雨林挑战'), '下');
   assert.equal(extractEpisodePartFromTitle('【qq】 第1期加更：幕后花絮'), '加更');
+  assert.equal(extractEpisodePartFromTitle('【imgo】第2期：周末（下）'), '下');
   assert.equal(extractEpisodePartFromTitle('【qq】 先导片下'), null);
   assert.equal(extractEpisodePartFromTitle('【qq】 第2集'), null);
 });
