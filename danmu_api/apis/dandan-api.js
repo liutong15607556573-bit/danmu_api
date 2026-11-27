@@ -1518,7 +1518,7 @@ export function scoreAnimePlatform(anime, platform, episodePlatform, byEpisode =
 }
 
 // 根据集数匹配episode（优先使用集标题中的集数，其次使用episodeNumber，最后使用数组索引）
-function findEpisodeByNumber(filteredEpisodes, episode, targetEpisode, platform = null, { sourceFallback = null, ordinalOnly = false, exactOnly = false } = {}) {
+function findEpisodeByNumber(filteredEpisodes, episode, targetEpisode, platform = null, { sourceFallback = null, ordinalOnly = false, exactOnly = false, includePeriod = false } = {}) {
   if (!filteredEpisodes || filteredEpisodes.length === 0) {
     return null;
   }
@@ -1542,7 +1542,7 @@ function findEpisodeByNumber(filteredEpisodes, episode, targetEpisode, platform 
   
   // 策略1：从集标题中提取集数进行匹配
   for (const ep of platformEpisodes) {
-    const extractedNumber = extractEpisodeNumberFromTitle(ep.episodeTitle, ordinalOnly);
+    const extractedNumber = extractEpisodeNumberFromTitle(ep.episodeTitle, ordinalOnly, includePeriod);
     if (episode === targetEpisode && extractedNumber === targetEpisode) {
       log("info", `[system] [match] Found episode by title number: ${ep.episodeTitle} (extracted: ${extractedNumber})`);
       return ep;
@@ -1551,7 +1551,7 @@ function findEpisodeByNumber(filteredEpisodes, episode, targetEpisode, platform 
 
   // 没有 offset 映射且标题含明确集号时，精确匹配失败就应视为目标集缺失。
   // 数组位置和生成的 episodeNumber 只能用于无集号标题或 offset 映射场景。
-  const hasExplicitEpisodeNumbers = platformEpisodes.some(ep => extractEpisodeNumberFromTitle(ep.episodeTitle, ordinalOnly) !== null);
+  const hasExplicitEpisodeNumbers = platformEpisodes.some(ep => extractEpisodeNumberFromTitle(ep.episodeTitle, ordinalOnly, includePeriod) !== null);
   const canUsePositionalFallback = episode !== targetEpisode || !hasExplicitEpisodeNumbers;
 
   if (canUsePositionalFallback) {
@@ -1559,7 +1559,7 @@ function findEpisodeByNumber(filteredEpisodes, episode, targetEpisode, platform 
     if (targetEpisode > 0 && platformEpisodes.length >= targetEpisode) {
       const fallbackEp = platformEpisodes[targetEpisode - 1];
       // 本地上传可能只有第 5、10 集，已标明集数的资源不能按列表位置补成第 1、2 集。
-      const numberedLocalEpisode = fallbackEp?.url?.startsWith('local:') && extractEpisodeNumberFromTitle(fallbackEp.episodeTitle, ordinalOnly) !== null;
+      const numberedLocalEpisode = fallbackEp?.url?.startsWith('local:') && extractEpisodeNumberFromTitle(fallbackEp.episodeTitle, ordinalOnly, includePeriod) !== null;
       if (fallbackEp && !numberedLocalEpisode) {
         log("info", `[system] [match] Using fallback array index for episode ${targetEpisode}: ${fallbackEp.episodeTitle}`);
         return fallbackEp;
@@ -1685,7 +1685,7 @@ async function matchAniAndEpByAi(season, episode, year, searchData, title, req, 
     if (hasSeasonEpisode(season, episode)) {
         // 剧集模式逻辑
         const filteredTmpEpisodes = filterEpisodesByTitle(bangumiData.bangumi.episodes);
-        const options = { preferredPlatform, sourceFallback: hasTitlePreference ? animePlatform(selectedAnime) : null, ordinalOnly: hasTitlePreference, exactOnly: hasTitlePreference, groups: searchData.seasonGroups?.get(selectedAnime) };
+        const options = { preferredPlatform, sourceFallback: hasTitlePreference ? animePlatform(selectedAnime) : null, ordinalOnly: hasTitlePreference, exactOnly: hasTitlePreference, includePeriod: season === 0, groups: searchData.seasonGroups?.get(selectedAnime) };
         const filteredEpisodes = filterSameEpisodeTitle(filteredTmpEpisodes, options);
         
         log("info", "[system] [match] 过滤后的集标题", filteredEpisodes.map(episode => episode.episodeTitle));
