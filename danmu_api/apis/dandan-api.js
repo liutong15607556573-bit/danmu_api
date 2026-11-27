@@ -191,6 +191,8 @@ async function resolveUrlDuration(url) {
       segmentResult = await sourceLogContext.run('xigua', () => xiguaSource.getComments(targetUrl, 'xigua', true));
     } else if (targetUrl.includes('.mddcloud.com.cn')) {
       segmentResult = await sourceLogContext.run('maiduidui', () => maiduiduiSource.getComments(targetUrl, 'maiduidui', true));
+    } else if (/(^|\\/\\/)(?:www\\.)?4kvm\\.net(?:[:/]|$)/i.test(targetUrl)) {
+      segmentResult = await sourceLogContext.run('4k', () => fourKSource.getComments(targetUrl, '4k', true));
     } else if (targetUrl.includes('.yfsp.tv')) {
       segmentResult = await sourceLogContext.run('aiyifan', () => aiyifanSource.getComments(targetUrl, 'aiyifan', true));
     }
