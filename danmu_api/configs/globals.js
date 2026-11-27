@@ -117,7 +117,7 @@ export const Globals = {
       } else if (conf.startsWith('animeko@') && (hostname.includes('animeko') || hostname.includes('bgm.tv'))) {
          specificProxy = conf.substring(8);
          break;
-      } else if (conf.startsWith('aiyifan@') && /(^|\.)(tripdata\.app|yfsp\.tv)$/.test(hostname)) {
+      } else if (conf.startsWith('4k@') && /(^|\\.)(4kvm\\.net|4k\\.dmservce\\.org)$/.test(hostname)) {\n         specificProxy = conf.substring(3);\n         break;\n      } else if (conf.startsWith('aiyifan@') && /(^|\.)(tripdata\.app|yfsp\.tv)$/.test(hostname)) {
          specificProxy = conf.substring(8);
          break;
       } else if (conf.startsWith('@') && !universalProxy) {
