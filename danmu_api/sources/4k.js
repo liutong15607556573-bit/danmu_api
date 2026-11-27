@@ -208,7 +208,13 @@ export default class FourKSource extends BaseSource {
   }
 
   async getEpisodeDanmuSegments(id) {
-    return { type: '4k', duration: 0, segmentList: [{ type: '4k', segment_start: 0, segment_end: 30000, url: id }] };
+    const comments = await this.getEpisodeDanmu(id);
+    const maxSecond = comments.length ? Math.max(...comments.map(item => Number(item.timepoint) || 0)) : 0;
+    return {
+      type: '4k',
+      duration: maxSecond,
+      segmentList: [{ type: '4k', segment_start: 0, segment_end: maxSecond, url: id }]
+    };
   }
 
   async getEpisodeSegmentDanmu(segment) {
