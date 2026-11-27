@@ -645,7 +645,7 @@ export default class TencentSource extends BaseSource {
     let filteredAnimes = sourceAnimes.filter(s => this.titleOrAliasMatches(s, queryTitle, querySeason));
 
     // 提取搜索词中的明确季度信息或使用传入的季度参数
-    const resolvedQuerySeason = querySeason !== null ? querySeason : getExplicitSeasonNumber(queryTitle);
+    const resolvedQuerySeason = querySeason !== null ? querySeason : getExplicitSeasonNumber(queryTitle, false);
 
     // 初始列表预过滤机制：若用户指定了季度，优先检查结果中是否已包含匹配项
     if (resolvedQuerySeason !== null) {
