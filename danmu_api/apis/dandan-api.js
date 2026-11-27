@@ -302,10 +302,10 @@ export function resolveEpisodeCount(declaredCount, availableCount) {
 export function classifyEpisodeEdition(value) {
   const text = String(value || '').toLowerCase();
   const patterns = [
-    ['pure', /(?:^|[.\\s_-])(?:pure|uncut)(?=$|[.\\s_-])|纯享版|纯享/i],
-    ['plus', /(?:^|[.\\s_-])(?:plus|extra)(?=$|[.\\s_-])|加更版|加更/i],
-    ['special', /(?:^|[.\\s_-])(?:special|sp)(?=$|[.\\s_-])|特辑|特别篇/i],
-    ['live', /(?:^|[.\\s_-])(?:live|concert)(?=$|[.\\s_-])|直播回放|直播/i],
+    ['pure', /(?:^|[.\s_-])(?:pure|uncut)(?=$|[.\s_-])|纯享版|纯享/i],
+    ['plus', /(?:^|[.\s_-])(?:plus|extra)(?=$|[.\s_-])|加更版|加更/i],
+    ['special', /(?:^|[.\s_-])(?:special|sp)(?=$|[.\s_-])|特辑|特别篇/i],
+    ['live', /(?:^|[.\s_-])(?:live|concert)(?=$|[.\s_-])|直播回放|直播/i],
   ];
   for (const [edition, pattern] of patterns) if (pattern.test(text)) return edition;
   return 'standard';
@@ -316,7 +316,7 @@ export function detectExplicitEpisodeEdition(value) {
   const text = String(value || '').toLowerCase();
   const specialEdition = classifyEpisodeEdition(text);
   if (specialEdition !== 'standard') return specialEdition;
-  if (/(?:^|[.\\s_-])standard(?=$|[.\\s_-])|正片|普通版|完整版|完整正片/i.test(text)) return 'standard';
+  if (/(?:^|[.\s_-])standard(?=$|[.\s_-])|正片|普通版|完整版|完整正片/i.test(text)) return 'standard';
   return null;
 }
 
@@ -326,7 +326,8 @@ export function filterEpisodesByEdition(episodes, requestedEdition = 'standard',
   return (episodes || []).filter(episode => {
     const episodeEdition = detectExplicitEpisodeEdition(episode?.episodeTitle ?? episode?.title ?? '');
     const actualEdition = episodeEdition || animeEdition;
-    return actualEdition === requested;
+    // 未标记候选仅可作为普通正片的兼容兜底；特殊版本必须有明确证据。
+    return actualEdition ? actualEdition === requested : requested === 'standard';
   });
 }
 
@@ -2532,7 +2533,10 @@ async function selectAnimeMatch({ season, episode, year, searchData, title, req,
   );
   const aiEpisodeEdition = detectExplicitEpisodeEdition(aiMatchResult.resEpisode?.episodeTitle)
     || detectExplicitEpisodeEdition(aiMatchResult.resAnime?.animeTitle);
-  if (aiMatchResult.resAnime && aiMatchResult.resEpisode && aiEpisodeEdition === (edition || 'standard')) {
+  const aiEditionMatches = aiEpisodeEdition
+    ? aiEpisodeEdition === (edition || 'standard')
+    : (edition || 'standard') === 'standard';
+  if (aiMatchResult.resAnime && aiMatchResult.resEpisode && aiEditionMatches) {
     // AI 直接给出结果，没有逐平台评分
     return { resAnime: aiMatchResult.resAnime, resEpisode: aiMatchResult.resEpisode, spilloverMatched: false, platformAttempts: [] };
   }
