@@ -820,11 +820,11 @@ const LANG_DUB_LABELS = [
  * @returns {string|null} 配音版本标识，无配音标识时为 null
  */
 const EPISODE_EDITION_LABELS = [
-    ['pure', /(?:^|[.\s_-])(?:pure|uncut)(?=$|[.\s_-])|纯享版|纯享/i],
-    ['plus', /(?:^|[.\s_-])(?:plus|extra)(?=$|[.\s_-])|加更版|加更/i],
-    ['special', /(?:^|[.\s_-])special(?=$|[.\s_-])|特辑|特别篇/i],
-    ['live', /(?:^|[.\s_-])(?:live|concert)(?=$|[.\s_-])|直播回放|直播版|直播/i],
-    ['standard', /(?:^|[.\s_-])standard(?=$|[.\s_-])|正片|普通版|完整版/i],
+    ['pure', /(?:^|[.\s_-])(?:pure|uncut)(?:\s*[)】\]]?)$/i|纯享版?$/i],
+    ['plus', /(?:^|[.\s_-])(?:plus|extra)(?:\s*[)】\]]?)$/i|加更版?$/i],
+    ['special', /(?:^|[.\s_-])special(?:\s*[)】\]]?)$/i|特辑|特别篇$/i],
+    ['live', /(?:^|[.\s_-])(?:live|concert)(?:\s*[)】\]]?)$/i|直播回放|直播版?$/i],
+    ['standard', /(?:^|[.\s_-])standard(?:\s*[)】\]]?)$/i|正片|普通版|完整版$/i],
 ];
 
 function getEditionLabel(text, bracketOnly = false) {
