@@ -17,7 +17,7 @@ import { filterMappingQualifierCandidates, filterMappingTargetCandidates, resolv
 import { ensureRemoteAutoMatchMapping, getEffectiveAutoMatchMappingRules } from "../utils/auto-match-mapping-url-util.js";
 import { 
   extractEpisodeTitle, stripEpisodePlatform, convertChineseNumber, parseFileName, createDynamicPlatformOrder, normalizeTitleForMatch,
-  extractYear, titleMatches, extractAnimeInfo, extractEpisodeNumberFromTitle, extractEpisodePartFromTitle, extractSeasonNumberFromAnimeTitle, extractAnimeTitle
+  extractYear, titleMatches, extractAnimeInfo, extractEpisodeNumberFromTitle, extractSeasonNumberFromAnimeTitle, extractAnimeTitle
 } from "../utils/common-util.js";
 import { getTMDBChineseTitle, getTmdbSeasonBoundaries } from "../utils/tmdb-util.js";
 import { applyMergeLogic, mergeDanmakuList, MERGE_DELIMITER, alignSourceTimelines, sanitizeUrl } from "../utils/merge-util.js";
@@ -355,8 +355,7 @@ export function filterEpisodesByTitle(episodes) {
       .filter(value => value !== null && value !== undefined && String(value).trim())
       .map(value => String(value).trim());
     if (titles.length === 0) return true;
-    // 「先导片」在综艺匹配中始终属于非正片；不能被部署环境的自定义过滤正则覆盖掉。
-    return !titles.some(value => /先导/i.test(value) || globals.episodeTitleFilter.test(value));
+    return !titles.some(value => globals.episodeTitleFilter.test(value));
   });
 }
 
@@ -1436,9 +1435,9 @@ function groupEpisodeAlternatives(episodes, movie = false, numberFor = null) {
     const taggedTitle = episode.episodeTitle ?? episode.title ?? '';
     const title = stripEpisodePlatform(taggedTitle);
     const number = numberFor?.(episode, index) ?? extractEpisodeNumberFromTitle(title, true);
-    const issue = number === null ? null : /第\s*[0-9一二三四五六七八九十百千万]+\s*期/.exec(title);
+    const issue = number === null ? null : /第\s*\d+\s*期/.exec(title);
     const suffix = issue && title.slice(issue.index + issue[0].length).trim();
-    const part = issue ? extractEpisodePartFromTitle(title) : null;
+    const part = suffix && (/^[（(]?\s*([上中下])(?:半[期场場]|[篇集部])?(?=$|[\s）):：、，,\-])/.exec(suffix) || /[（(]\s*([上中下])\s*[）)]$/.exec(suffix))?.[1];
     const named = number === null && !movie && Boolean(title);
     const key = part ? `issue:${number}:${part}` : number ?? (movie ? 'movie' : named ? `title:${title}` : `untitled:${index}`);
     return { key, number, issue, part, named, source: extractEpisodeTitle(taggedTitle) };
@@ -1455,7 +1454,7 @@ function groupEpisodeAlternatives(episodes, movie = false, numberFor = null) {
   if (!movie && ordered.some(group => group.number === null)) ordered = alignEpisodeGroupOrder(ordered, entries);
   if (ordered.some(group => group.part)) {
     const issues = ordered.filter(group => group.issue).sort((left, right) =>
-      left.number - right.number || ({ 上: 0, 中: 1, 下: 2, 加更: 3 }[left.part] ?? 4) - ({ 上: 0, 中: 1, 下: 2, 加更: 3 }[right.part] ?? 4));
+      left.number - right.number || ' 上中下'.indexOf(left.part || ' ') - ' 上中下'.indexOf(right.part || ' '));
     let nextIssue = 0;
     ordered = ordered.map(group => group.issue ? issues[nextIssue++] : group);
     for (const group of issues) group.explicit = false;
@@ -1473,8 +1472,8 @@ function groupEpisodeAlternatives(episodes, movie = false, numberFor = null) {
 
 export function filterSameEpisodeTitle(filteredTmpEpisodes, options = {}) {
     const { preferredPlatform = null, sourceFallback = null, ordinalOnly = false } = options;
-    if (ordinalOnly || options.includePeriod) {
-        return (options.groups ?? groupEpisodeAlternatives(filteredTmpEpisodes, false, episode => extractEpisodeNumberFromTitle(episode.episodeTitle ?? episode.title ?? '', true, true))).map(({ indices, number, explicit }) => {
+    if (ordinalOnly) {
+        return (options.groups ?? groupEpisodeAlternatives(filteredTmpEpisodes)).map(({ indices, number, explicit }) => {
             const variants = indices.map(index => filteredTmpEpisodes[index]);
             const [selected] = rankEpisodeLinks(variants, preferredPlatform, sourceFallback);
             return { ...selected, episodeNumber: String(number), explicitNumber: explicit };
@@ -1575,7 +1574,7 @@ export function scoreAnimePlatform(anime, platform, episodePlatform, byEpisode =
 }
 
 // 根据集数匹配episode（优先使用集标题中的集数，其次使用episodeNumber，最后使用数组索引）
-function findEpisodeByNumber(filteredEpisodes, episode, targetEpisode, platform = null, { sourceFallback = null, ordinalOnly = false, exactOnly = false, includePeriod = false, requiredPeriodPart = null } = {}) {
+function findEpisodeByNumber(filteredEpisodes, episode, targetEpisode, platform = null, { sourceFallback = null, ordinalOnly = false, exactOnly = false, includePeriod = false } = {}) {
   if (!filteredEpisodes || filteredEpisodes.length === 0) {
     return null;
   }
@@ -1590,13 +1589,10 @@ function findEpisodeByNumber(filteredEpisodes, episode, targetEpisode, platform 
     });
   }
   
-  if (requiredPeriodPart) {
-    platformEpisodes = platformEpisodes.filter(ep => extractEpisodePartFromTitle(ep.episodeTitle ?? ep.title ?? '') === requiredPeriodPart);
-  }
   if (platformEpisodes.length === 0) {
     return null;
   }
-  if (ordinalOnly && episode === targetEpisode && !requiredPeriodPart) {
+  if (ordinalOnly && episode === targetEpisode) {
     return platformEpisodes.find(ep => (!exactOnly || ep.explicitNumber) && Number(ep.episodeNumber) === targetEpisode) || null;
   }
   
@@ -1652,7 +1648,7 @@ function selectMovieEpisode(episodes, anime, platform, hasTitlePreference) {
   return episodes.find(ep => getPlatformMatchScore(extractEpisodeTitle(ep.episodeTitle), platform) > 0);
 }
 
-async function matchAniAndEpByAi(season, episode, year, searchData, title, req, dynamicPlatformOrder, preferAnimeId, detailStore, hasTitlePreference, periodPart = null, isVarietyPeriod = false) {
+async function matchAniAndEpByAi(season, episode, year, searchData, title, req, dynamicPlatformOrder, preferAnimeId, detailStore, hasTitlePreference) {
   const aiBaseUrl = globals.aiBaseUrl;
   const aiModel = globals.aiModel;
   const aiApiKey = globals.aiApiKey;
@@ -1745,7 +1741,7 @@ async function matchAniAndEpByAi(season, episode, year, searchData, title, req, 
     if (hasSeasonEpisode(season, episode)) {
         // 剧集模式逻辑
         const filteredTmpEpisodes = filterEpisodesByTitle(bangumiData.bangumi.episodes);
-        const options = { preferredPlatform, sourceFallback: hasTitlePreference ? animePlatform(selectedAnime) : null, ordinalOnly: hasTitlePreference, exactOnly: hasTitlePreference, includePeriod: season === 0 || isVarietyPeriod || Boolean(periodPart), requiredPeriodPart: periodPart, groups: searchData.seasonGroups?.get(selectedAnime) };
+        const options = { preferredPlatform, sourceFallback: hasTitlePreference ? animePlatform(selectedAnime) : null, ordinalOnly: hasTitlePreference, exactOnly: hasTitlePreference, includePeriod: season === 0, groups: searchData.seasonGroups?.get(selectedAnime) };
         const filteredEpisodes = filterSameEpisodeTitle(filteredTmpEpisodes, options);
         
         log("info", "[system] [match] 过滤后的集标题", filteredEpisodes.map(episode => episode.episodeTitle));
@@ -2100,7 +2096,7 @@ function findCrossSeasonEpisodeMap(searchData, title, year, season, episode, pla
   return { resEpisode: bestRes.episode, resAnime: bestRes.anime };
 }
 
-export async function matchAniAndEp(season, episode, year, searchData, title, req, platform, preferAnimeId, offsets, detailStore = null, hasTitlePreference = false, exactOnly = false, edition = 'standard', periodPart = null, isVarietyPeriod = false) {
+export async function matchAniAndEp(season, episode, year, searchData, title, req, platform, preferAnimeId, offsets, detailStore = null, hasTitlePreference = false, exactOnly = false, edition = 'standard') {
   // 定义最佳匹配结果容器
   let bestRes = {
     anime: null,
@@ -2211,13 +2207,13 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
     if (hasSeasonEpisode(season, episode)) {
         // 剧集模式逻辑
         const filteredTmpEpisodes = filterEpisodesByEdition(filterEpisodesByTitle(bangumiData.bangumi.episodes), edition, anime.animeTitle);
-        const options = { preferredPlatform: platform, sourceFallback: hasTitlePreference ? animePlatform(anime) : null, ordinalOnly: hasTitlePreference, exactOnly, includePeriod: season === 0 || isVarietyPeriod || Boolean(periodPart), requiredPeriodPart: periodPart, groups: searchData.seasonGroups?.get(anime) };
+        const options = { preferredPlatform: platform, sourceFallback: hasTitlePreference ? animePlatform(anime) : null, ordinalOnly: hasTitlePreference, exactOnly, includePeriod: season === 0, groups: searchData.seasonGroups?.get(anime) };
         const filteredEpisodes = filterSameEpisodeTitle(filteredTmpEpisodes, options);
         
         log("info", "[system] [match] 过滤后的集标题", filteredEpisodes.map(episode => episode.episodeTitle));
 
         let targetEpisode = episode;
-        if (!isVarietyPeriod && offsets && offsets[String(season)] !== undefined) {
+        if (offsets && offsets[String(season)] !== undefined) {
           targetEpisode = computeTargetEpisode(offsets, season, episode, filteredEpisodes, targetEpisode);
         }
 
@@ -2306,9 +2302,7 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
   }
 
   //  跨季集数顺延映射匹配逻辑
-  if (!isVarietyPeriod && !periodPart && !hasTitlePreference && !bestRes.episode && hasSeasonEpisode(season, episode)) {
-    // 综艺「第N期上/下/加更」不是连续剧集数；跨季顺延会忽略期标记，
-    // 并可能按数组位置把先导片当成目标集，故必须彻底禁用该兜底。
+  if (!hasTitlePreference && !bestRes.episode && hasSeasonEpisode(season, episode)) {
     const spilloverRes = findCrossSeasonEpisodeMap(searchData, title, year, season, episode, platform, detailStore);
     if (spilloverRes.resEpisode) {
       bestRes = {
@@ -2327,7 +2321,7 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
   return { resEpisode: bestRes.episode, resAnime: bestRes.anime, candidates };
 }
 
-export async function fallbackMatchAniAndEp(searchData, req, season, episode, year, title, resEpisode, resAnime, offsets, detailStore = null, preference = null, edition = 'standard', periodPart = null, isVarietyPeriod = false) {
+export async function fallbackMatchAniAndEp(searchData, req, season, episode, year, title, resEpisode, resAnime, offsets, detailStore = null, preference = null, edition = 'standard') {
   // 兜底先尝试季号与目标季一致的候选，全部落空后再退回不限季的取值逻辑，避免直接取到其它季的同集号
   const sameSeasonAnimes = [];
   const restAnimes = [];
@@ -2339,8 +2333,7 @@ export async function fallbackMatchAniAndEp(searchData, req, season, episode, ye
     }
   }
 
-  const fallbackAnimes = isVarietyPeriod && season ? sameSeasonAnimes : [...sameSeasonAnimes, ...restAnimes];
-  for (const anime of fallbackAnimes) {
+  for (const anime of [...sameSeasonAnimes, ...restAnimes]) {
     // 年份匹配优先（如果提供了年份）
     if (year && !matchYear(anime, year)) {
       log("info", `[system] [match] Fallback: Year mismatch: anime year ${extractYear(anime.animeTitle)} vs query year ${year}`);
@@ -2357,13 +2350,13 @@ export async function fallbackMatchAniAndEp(searchData, req, season, episode, ye
       const filteredTmpEpisodes = filterEpisodesByEdition(filterEpisodesByTitle(bangumiData.bangumi.episodes), edition, anime.animeTitle);
 
       // 过滤集标题一致的 episode，且保留首次出现的集标题的 episode
-      const options = { ordinalOnly: Boolean(preference), includePeriod: season === 0 || isVarietyPeriod || Boolean(periodPart), requiredPeriodPart: periodPart, groups: searchData.seasonGroups?.get(anime) };
+      const options = { ordinalOnly: Boolean(preference), includePeriod: season === 0, groups: searchData.seasonGroups?.get(anime) };
       const filteredEpisodes = filterSameEpisodeTitle(filteredTmpEpisodes, options);
 
       log("info", "[system] [LogVar-API] 过滤后的集标题", filteredEpisodes.map(episode => episode.episodeTitle));
 
       let targetEpisode = episode;
-      if (!isVarietyPeriod && offsets && offsets[String(season)] !== undefined) {
+      if (offsets && offsets[String(season)] !== undefined) {
         targetEpisode = computeTargetEpisode(offsets, season, episode, filteredEpisodes, targetEpisode);
       }
 
@@ -2385,7 +2378,7 @@ export async function fallbackMatchAniAndEp(searchData, req, season, episode, ye
 
   // 跨季兜底溢出查找逻辑
   let isSpillover = false;
-  if (!resEpisode && !isVarietyPeriod && hasSeasonEpisode(season, episode) && edition === 'standard') {
+  if (!resEpisode && hasSeasonEpisode(season, episode) && edition === 'standard') {
     const spilloverRes = findCrossSeasonEpisodeMap(preference?.seriesData || searchData, title, year, season, episode, null, detailStore, preference);
     if (spilloverRes.resEpisode) {
       resEpisode = spilloverRes.resEpisode;
@@ -2446,21 +2439,18 @@ export async function extractTitleSeasonEpisode(cleanFileName) {
   const match = cleanFileName.match(regex);
   // 中文综艺文件名常用「节目名 第N期上/下」表示期数，不是「第N季」。
   // 先识别期数，避免把期数留在剧名里导致搜索不到节目，也避免误触发跨季匹配。
-  const varietyPeriodMatch = cleanFileName.match(/^(.*?)[.\s_-]*第\s*([0-9一二三四五六七八九十百千万]+)\s*期(?:上|下|中|加更)?(?:[.\s_-：:、（【(].*)?$/i);
+  const varietyPeriodMatch = cleanFileName.match(/^(.*?)[.\s_-]*第\s*([0-9一二三四五六七八九十百千万]+)\s*期(?:上|下|中)?(?:[.\s_-（【(].*)?$/i);
 
   let title, season, episode, year;
 
   if (varietyPeriodMatch && varietyPeriodMatch[1].trim()) {
     const rawProgramTitle = varietyPeriodMatch[1].trim().replace(/[.\s_-]+$/, '');
     const seasonMatch = rawProgramTitle.match(/第\s*([0-9一二三四五六七八九十百千万]+)\s*季/);
-    const embeddedSeasonEpisode = rawProgramTitle.match(/\bS(\d+)E\d+\b/i);
     // 0 表示期数已知但季数未知：保留“按期匹配”模式，同时不强行限定第1季。
     season = seasonMatch ? convertChineseNumber(seasonMatch[1]) : 0;
-    title = (seasonMatch
-      ? rawProgramTitle.replace(seasonMatch[0], '')
-      : rawProgramTitle).replace(/\bS\d+E\d+\b/i, '').trim();
-    if (seasonMatch) season = convertChineseNumber(seasonMatch[1]);
-    else if (embeddedSeasonEpisode) season = Number(embeddedSeasonEpisode[1]);
+    title = seasonMatch
+      ? rawProgramTitle.replace(seasonMatch[0], '').trim()
+      : rawProgramTitle;
     episode = convertChineseNumber(varietyPeriodMatch[2]);
     const yearMatch = cleanFileName.match(/(?:\.|\(|（)((?:19|20)\d{2})(?:\)|）|\.|$)/);
     if (yearMatch) year = parseInt(yearMatch[1], 10);
@@ -2534,7 +2524,7 @@ export async function extractTitleSeasonEpisode(cleanFileName) {
   log("info", "[system] [match] Parsed title, season, episode, year", {title, season, episode, year});
   const editionSuffix = cleanFileName.match(/S\d+E\d+(.*)$/i)?.[1] || cleanFileName.match(/第\s*[0-9一二三四五六七八九十百千万]+\s*期(?:上|下|中)?(.*)$/i)?.[1] || '';
   const edition = classifyEpisodeEdition(editionSuffix);
-  return {title, requestTitle, season, episode, year, edition, periodPart: varietyPeriodMatch ? extractEpisodePartFromTitle(cleanFileName) : null, isVarietyPeriod: Boolean(varietyPeriodMatch)};
+  return {title, requestTitle, season, episode, year, edition};
 }
 
 export function buildSearchAnimeUrl(baseUrl, keyword, season, episode) {
@@ -2552,7 +2542,7 @@ export function buildSearchAnimeUrl(baseUrl, keyword, season, episode) {
   return searchUrl;
 }
 
-async function selectAnimeMatch({ season, episode, year, searchData, title, req, dynamicPlatformOrder, preferAnimeId, offsets, detailStore, preference, edition, periodPart = null, isVarietyPeriod = false }) {
+async function selectAnimeMatch({ season, episode, year, searchData, title, req, dynamicPlatformOrder, preferAnimeId, offsets, detailStore, preference, edition }) {
   const hasTitlePreference = Boolean(preference);
   let directData = searchData;
   let seasonIndexes;
@@ -2563,16 +2553,14 @@ async function selectAnimeMatch({ season, episode, year, searchData, title, req,
     directData.seasonGroups = seasonIndexes?.get(season)?.groupsByAnime;
   }
   const aiMatchResult = await matchAniAndEpByAi(
-    season, episode, year, directData, title, req, dynamicPlatformOrder, preferAnimeId, detailStore, hasTitlePreference, periodPart, isVarietyPeriod
+    season, episode, year, directData, title, req, dynamicPlatformOrder, preferAnimeId, detailStore, hasTitlePreference
   );
   const aiEpisodeEdition = detectExplicitEpisodeEdition(aiMatchResult.resEpisode?.episodeTitle)
     || detectAnimeTitleEdition(aiMatchResult.resAnime?.animeTitle);
   const aiEditionMatches = aiEpisodeEdition
     ? aiEpisodeEdition === (edition || 'standard')
     : (edition || 'standard') === 'standard';
-  const aiEpisodeIsMainContent = aiMatchResult.resEpisode
-    && filterEpisodesByTitle([aiMatchResult.resEpisode]).length === 1;
-  if (aiMatchResult.resAnime && aiMatchResult.resEpisode && aiEditionMatches && aiEpisodeIsMainContent) {
+  if (aiMatchResult.resAnime && aiMatchResult.resEpisode && aiEditionMatches) {
     // AI 直接给出结果，没有逐平台评分
     return { resAnime: aiMatchResult.resAnime, resEpisode: aiMatchResult.resEpisode, spilloverMatched: false, platformAttempts: [] };
   }
@@ -2581,7 +2569,7 @@ async function selectAnimeMatch({ season, episode, year, searchData, title, req,
   for (const exactOnly of (preference && hasSeasonEpisode(season, episode) ? [true, false] : [false])) {
     for (const platform of dynamicPlatformOrder) {
       const matched = await matchAniAndEp(
-        season, episode, year, directData, title, req, platform, preferAnimeId, offsets, detailStore, hasTitlePreference, exactOnly, edition, periodPart, isVarietyPeriod
+        season, episode, year, directData, title, req, platform, preferAnimeId, offsets, detailStore, hasTitlePreference, exactOnly, edition
       );
       platformAttempts.push({
         platform: platform || '默认',
@@ -2597,12 +2585,12 @@ async function selectAnimeMatch({ season, episode, year, searchData, title, req,
 
   const { resAnime, resEpisode, isSpillover } = await fallbackMatchAniAndEp(
     directData, req, season, episode, year, title, null, null, offsets, detailStore,
-    preference && { seriesData: searchData, platforms: dynamicPlatformOrder, seasonIndexes, matchesSeries: preference.matchesSeries }, edition, periodPart, isVarietyPeriod
+    preference && { seriesData: searchData, platforms: dynamicPlatformOrder, seasonIndexes, matchesSeries: preference.matchesSeries }, edition
   );
   return { resAnime, resEpisode, spilloverMatched: isSpillover, platformAttempts };
 }
 
-async function executeMatchAttempt({ req, title, preference, season, episode, year, preferredPlatform, preferAnimeId, preferSource, offsets, mapping, edition, periodPart = null, isVarietyPeriod = false }) {
+async function executeMatchAttempt({ req, title, preference, season, episode, year, preferredPlatform, preferAnimeId, preferSource, offsets, mapping, edition }) {
   const dynamicPlatformOrder = createDynamicPlatformOrder(mapping?.targetPlatform, preferredPlatform, preference?.platform);
   const targetPlatform = dynamicPlatformOrder.length > 0 ? dynamicPlatformOrder[0] : null;
   const detailStore = new Map();
@@ -2656,9 +2644,7 @@ async function executeMatchAttempt({ req, title, preference, season, episode, ye
       preferAnimeId,
       offsets,
       detailStore,
-      edition,
-      periodPart,
-      isVarietyPeriod
+      edition
     });
     if (selected.resAnime && selected.resEpisode) {
       if (mapping && pass.label === 'qualified') {
@@ -2897,9 +2883,7 @@ export async function matchAnime(url, req, clientIp) {
         preferSource: null,
         offsets: null,
         mapping,
-        edition,
-        periodPart: parsed.periodPart,
-        isVarietyPeriod: parsed.isVarietyPeriod
+        edition
       });
       mappingApplied = Boolean(attempt.resAnime && attempt.resEpisode);
       if (!mappingApplied) {
@@ -2926,9 +2910,7 @@ export async function matchAnime(url, req, clientIp) {
         preferSource,
         offsets,
         mapping: null,
-        edition,
-        periodPart: parsed.periodPart,
-        isVarietyPeriod: parsed.isVarietyPeriod
+        edition
       });
     }
 
