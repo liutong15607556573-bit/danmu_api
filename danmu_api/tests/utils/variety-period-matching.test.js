@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Globals } from '../../configs/globals.js';
+import { extractTitleSeasonEpisode, filterSameEpisodeTitle } from '../../apis/dandan-api.js';
 import {
   extractEpisodeNumberFromTitle,
   extractSeasonNumberFromAnimeTitle,
@@ -38,4 +39,26 @@ test('综艺上下半期与加更必须区分，不能只按期数合并', async
   assert.equal(extractEpisodePartFromTitle('【qq】 第1期加更：幕后花絮'), '加更');
   assert.equal(extractEpisodePartFromTitle('【qq】 先导片下'), null);
   assert.equal(extractEpisodePartFromTitle('【qq】 第2集'), null);
+});
+
+
+test('文件名解析保留季号并单独识别综艺期数上下半期', async () => {
+  Globals.init({});
+  const parsed = await extractTitleSeasonEpisode('现在就出发 第4季 S4E2 第1期下：神秘的热带雨林');
+  assert.equal(parsed.title, '现在就出发');
+  assert.equal(parsed.season, 4);
+  assert.equal(parsed.episode, 1);
+  assert.equal(parsed.periodPart, '下');
+  assert.equal(parsed.isVarietyPeriod, true);
+});
+
+test('综艺同一期的上、下、加更候选不会在去重时互相吞掉', () => {
+  Globals.init({});
+  const candidates = [
+    { episodeId: 1, episodeTitle: '【qq】 第1期上：出发团变落汤鸡' },
+    { episodeId: 2, episodeTitle: '【qq】 第1期下：雨林挑战' },
+    { episodeId: 3, episodeTitle: '【qq】 第1期加更：幕后花絮' },
+  ];
+  const filtered = filterSameEpisodeTitle(candidates, { includePeriod: true });
+  assert.deepEqual(filtered.map(item => item.episodeId), [1, 2, 3]);
 });
