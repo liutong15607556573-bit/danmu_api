@@ -2546,7 +2546,7 @@ async function selectAnimeMatch({ season, episode, year, searchData, title, req,
     season, episode, year, directData, title, req, dynamicPlatformOrder, preferAnimeId, detailStore, hasTitlePreference
   );
   const aiEpisodeEdition = detectExplicitEpisodeEdition(aiMatchResult.resEpisode?.episodeTitle)
-    || detectExplicitEpisodeEdition(aiMatchResult.resAnime?.animeTitle);
+    || detectAnimeTitleEdition(aiMatchResult.resAnime?.animeTitle);
   const aiEditionMatches = aiEpisodeEdition
     ? aiEpisodeEdition === (edition || 'standard')
     : (edition || 'standard') === 'standard';
