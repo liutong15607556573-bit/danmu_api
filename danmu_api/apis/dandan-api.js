@@ -303,11 +303,11 @@ export function classifyEpisodeEdition(value) {
   // 只分析分集标记后的版本短区间；年份、清晰度、编码、音轨和发布组均属于媒体元数据。
   const text = String(value || '').split(/(?:^|[.\s_-])(?:19|20)\d{2}(?=$|[.\s_-])|(?:^|[.\s_-])(?:2160p|1440p|1080p|720p|480p|4k|8k|web[-_. ]?(?:dl|rip)|blu[-_. ]?ray|h\.?26[45]|hevc|avc|x26[45]|hdr(?:10)?|dolby[-_. ]?vision|10bit|aac|ddp|dts|remux)(?=$|[.\s_-])/i)[0].toLowerCase();
   const patterns = [
-    ['pure', /(?:^|[.\s_-])(?:pure|uncut)(?=$|[.\s_-])|纯享版|纯享/i],
-    ['plus', /(?:^|[.\s_-])(?:plus|extra)(?=$|[.\s_-])|加更版|加更/i],
+    ['pure', /(?:^|[.\s_（(\[【-])(?:pure|uncut)(?=$|[.\s_）)\]】-])|纯享版|纯享/i],
+    ['plus', /(?:^|[.\s_（(\[【-])(?:plus|extra)(?=$|[.\s_）)\]】-])|加更版|加更/i],
     // 不把含糊的 SP 缩写当作 Special，避免发布组/普通词误判。
-    ['special', /(?:^|[.\s_-])special(?=$|[.\s_-])|特辑|特别篇/i],
-    ['live', /(?:^|[.\s_-])(?:live|concert)(?=$|[.\s_-])|直播回放|直播/i],
+    ['special', /(?:^|[.\s_（(\[【-])special(?=$|[.\s_）)\]】-])|特辑|特别篇/i],
+    ['live', /(?:^|[.\s_（(\[【-])(?:live|concert)(?=$|[.\s_）)\]】-])|直播回放|直播/i],
   ];
   for (const [edition, pattern] of patterns) if (pattern.test(text)) return edition;
   return 'standard';
