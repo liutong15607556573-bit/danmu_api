@@ -186,7 +186,7 @@ export default class FourKSource extends BaseSource {
           .map(item => ({
             timepoint: Number(item.time),
             ct: Number.isFinite(Number(item.mode)) ? Number(item.mode) : 1,
-            color: parseInt(String(item.color || '#FFFFFF').replace('#', ''), 16) || 16777215,
+            color: Number.isFinite(parseInt(String(item.color || '#FFFFFF').replace('#', ''), 16)) ? parseInt(String(item.color || '#FFFFFF').replace('#', ''), 16) : 16777215,
             content: item.content
           }));
       } catch (error) {
