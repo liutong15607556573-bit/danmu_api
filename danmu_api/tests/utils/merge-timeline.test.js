@@ -60,3 +60,21 @@ test('alignSourceTimelines does not calibrate from a single repeated phrase', ()
 
   assert.deepEqual(shifted, before);
 });
+
+test('alignSourceTimelines skips calibration when unique text anchors disagree on the offset', () => {
+  const reference = [
+    { m: '唯一锚点甲', t: 10 },
+    { m: '唯一锚点乙', t: 100 },
+    { m: '唯一锚点丙', t: 200 },
+  ];
+  const shifted = [
+    { m: '唯一锚点甲', t: 40 },
+    { m: '唯一锚点乙', t: 130 },
+    { m: '唯一锚点丙', t: 280 },
+  ];
+  const before = structuredClone(shifted);
+
+  alignSourceTimelines([reference, shifted], ['iqiyi', 'youku'], ['a', 'b']);
+
+  assert.deepEqual(shifted, before);
+});
