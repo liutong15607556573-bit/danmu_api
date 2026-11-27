@@ -301,7 +301,7 @@ export function resolveEpisodeCount(declaredCount, availableCount) {
 // 按集标题过滤剧集
 export function classifyEpisodeEdition(value) {
   // 只分析分集标记后的版本短区间；年份、清晰度、编码、音轨和发布组均属于媒体元数据。
-  const text = String(value || '').split(/(?:^|[.\s_-])(?:19|20)\d{2}(?=$|[.\s_-])|(?:^|[.\s_-])(?:2160p|1440p|1080p|720p|480p|4k|8k|web[-_. ]?dl|blu[-_. ]?ray|h\.?26[45]|hevc|avc|x26[45]|aac|ddp|dts)(?=$|[.\s_-])/i)[0].toLowerCase();
+  const text = String(value || '').split(/(?:^|[.\s_-])(?:19|20)\d{2}(?=$|[.\s_-])|(?:^|[.\s_-])(?:2160p|1440p|1080p|720p|480p|4k|8k|web[-_. ]?(?:dl|rip)|blu[-_. ]?ray|h\.?26[45]|hevc|avc|x26[45]|hdr(?:10)?|dolby[-_. ]?vision|10bit|aac|ddp|dts|remux)(?=$|[.\s_-])/i)[0].toLowerCase();
   const patterns = [
     ['pure', /(?:^|[.\s_-])(?:pure|uncut)(?=$|[.\s_-])|纯享版|纯享/i],
     ['plus', /(?:^|[.\s_-])(?:plus|extra)(?=$|[.\s_-])|加更版|加更/i],
