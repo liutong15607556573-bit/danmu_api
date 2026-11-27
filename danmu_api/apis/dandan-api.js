@@ -311,11 +311,14 @@ export function classifyEpisodeEdition(value) {
   return 'standard';
 }
 
-export function filterEpisodesByEdition(episodes, requestedEdition = 'standard') {
+export function filterEpisodesByEdition(episodes, requestedEdition = 'standard', animeTitle = '') {
   const requested = requestedEdition || 'standard';
-  return (episodes || []).filter(episode =>
-    classifyEpisodeEdition(episode?.episodeTitle ?? episode?.title ?? '') === requested
-  );
+  const animeEdition = classifyEpisodeEdition(animeTitle);
+  return (episodes || []).filter(episode => {
+    const episodeEdition = classifyEpisodeEdition(episode?.episodeTitle ?? episode?.title ?? '');
+    const actualEdition = episodeEdition === 'standard' ? animeEdition : episodeEdition;
+    return actualEdition === requested;
+  });
 }
 
 export function filterEpisodesByTitle(episodes) {
@@ -2169,7 +2172,7 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
 
     if (hasSeasonEpisode(season, episode)) {
         // 剧集模式逻辑
-        const filteredTmpEpisodes = filterEpisodesByEdition(filterEpisodesByTitle(bangumiData.bangumi.episodes), edition);
+        const filteredTmpEpisodes = filterEpisodesByEdition(filterEpisodesByTitle(bangumiData.bangumi.episodes), edition, anime.animeTitle);
         const options = { preferredPlatform: platform, sourceFallback: hasTitlePreference ? animePlatform(anime) : null, ordinalOnly: hasTitlePreference, exactOnly, includePeriod: season === 0, groups: searchData.seasonGroups?.get(anime) };
         const filteredEpisodes = filterSameEpisodeTitle(filteredTmpEpisodes, options);
         
@@ -2518,7 +2521,7 @@ async function selectAnimeMatch({ season, episode, year, searchData, title, req,
   const aiMatchResult = await matchAniAndEpByAi(
     season, episode, year, directData, title, req, dynamicPlatformOrder, preferAnimeId, detailStore, hasTitlePreference
   );
-  if (aiMatchResult.resAnime && aiMatchResult.resEpisode && classifyEpisodeEdition(aiMatchResult.resEpisode.episodeTitle) === (edition || 'standard')) {
+  if (aiMatchResult.resAnime && aiMatchResult.resEpisode && (classifyEpisodeEdition(aiMatchResult.resEpisode.episodeTitle) === 'standard' ? classifyEpisodeEdition(aiMatchResult.resAnime?.animeTitle) : classifyEpisodeEdition(aiMatchResult.resEpisode.episodeTitle)) === (edition || 'standard')) {
     // AI 直接给出结果，没有逐平台评分
     return { resAnime: aiMatchResult.resAnime, resEpisode: aiMatchResult.resEpisode, spilloverMatched: false, platformAttempts: [] };
   }
