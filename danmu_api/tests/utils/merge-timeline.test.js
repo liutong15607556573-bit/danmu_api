@@ -124,3 +124,51 @@ test('alignSourceTimelines refuses to calibrate when matching anchors reverse th
 
   assert.deepEqual(reordered, before);
 });
+
+
+test('alignSourceTimelines keeps p, t and progress timestamps synchronized', () => {
+  const reference = [
+    { m: '时间格式锚点甲', p: '10,1,25,16777215', t: 10 },
+    { m: '时间格式锚点乙', p: '80,1,25,16777215', t: 80 },
+    { m: '参照源独有内容甲', p: '120,1,25,16777215', t: 120 },
+  ];
+  const shifted = [
+    { m: '时间格式锚点甲', p: '40,1,25,16777215', t: 40, progress: 40000 },
+    { m: '时间格式锚点乙', p: '110,1,25,16777215', t: 110, progress: 110000 },
+    { m: '需要同步更新的弹幕', p: '150,1,25,16777215', t: 150, progress: 150000 },
+  ];
+
+  alignSourceTimelines([reference, shifted], ['iqiyi', 'youku'], ['a', 'b']);
+
+  assert.deepEqual(shifted.map(item => item.p.split(',')[0]), ['10.00', '80.00', '120.00']);
+  assert.deepEqual(shifted.map(item => item.t), [10, 80, 120]);
+  assert.deepEqual(shifted.map(item => item.progress), [10000, 80000, 120000]);
+});
+
+test('alignSourceTimelines does not extrapolate piecewise offsets beyond anchor coverage', () => {
+  const reference = [
+    { m: '覆盖内锚点甲', t: 10 },
+    { m: '覆盖内锚点乙', t: 80 },
+    { m: '覆盖内锚点丙', t: 160 },
+    { m: '覆盖内锚点丁', t: 220 },
+    { m: '覆盖内锚点戊', t: 300 },
+    { m: '覆盖内锚点己', t: 360 },
+    { m: '参照源独有内容甲', t: 400 },
+    { m: '参照源独有内容乙', t: 430 },
+  ];
+  const edited = [
+    { m: '覆盖内锚点甲', t: 40 },
+    { m: '覆盖内锚点乙', t: 110 },
+    { m: '覆盖内锚点丙', t: 220 },
+    { m: '覆盖内锚点丁', t: 280 },
+    { m: '覆盖内锚点戊', t: 360 },
+    { m: '覆盖内锚点己', t: 420 },
+    { m: '锚点范围之前', t: 5 },
+    { m: '锚点范围之后', t: 500 },
+  ];
+
+  alignSourceTimelines([reference, edited], ['iqiyi', 'youku'], ['a', 'b']);
+
+  assert.equal(edited[6].t, 5);
+  assert.equal(edited[7].t, 500);
+});
