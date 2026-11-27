@@ -820,7 +820,7 @@ const LANG_DUB_LABELS = [
  * @returns {string|null} 配音版本标识，无配音标识时为 null
  */
 const EPISODE_EDITION_LABELS = [
-    ['pure', /(?:^|[.\s_-])(?:pure|uncut)(?:\s*[)】\]]?)$|纯享版?$/i],
+    ['pure', /(?:^|[.\s_（(\[【-])(?:pure|uncut)(?:\s*[)】\]]?)$|纯享版?$/i],
     ['plus', /(?:^|[.\s_-])(?:plus|extra)(?:\s*[)】\]]?)$|加更版?$/i],
     ['special', /(?:^|[.\s_-])special(?:\s*[)】\]]?)$|特辑|特别篇$/i],
     ['live', /(?:^|[.\s_-])(?:live|concert)(?:\s*[)】\]]?)$|直播回放|直播版?$/i],
