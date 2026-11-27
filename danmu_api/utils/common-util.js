@@ -478,7 +478,11 @@ export function extractSeasonNumberFromAnimeTitle(animeTitle) {
  */
 export function stripVarietyEpisodeMarker(title) {
   if (typeof title !== 'string') return '';
-  return title.replace(/\s*第\s*[0-9一二三四五六七八九十百千万]+\s*期(?:上|下)?[\s\S]*$/i, '').trim();
+  return title
+    .replace(/\s*第\s*[0-9一二三四五六七八九十百千万]+\s*期(?:上|下)?[\s\S]*$/i, '')
+    .replace(/\s*S\d{1,3}\s*E\d{1,4}[\s\S]*$/i, '')
+    .replace(/\s+E?P?\d{1,4}[\s\S]*$/i, '')
+    .trim();
 }
 
 export function extractEpisodeNumberFromTitle(episodeTitle, ordinalOnly = false) {
