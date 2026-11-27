@@ -2173,6 +2173,12 @@ export function findSecondaryMatches(primaryAnime, secondaryList, collectionAnim
 
     for (const secAnime of secondaryList) {
         const rawSecTitle     = secAnime.animeTitle || '';
+
+        // 防御性二次校验：即使调用方未预过滤，映射表特权也不能绕过剪辑版本隔离。
+        if (!areAnimeEditionsCompatible(primaryAnime, secAnime)) {
+            logReason(rawSecTitle, '剪辑版本证据不一致或不足，拒绝跨版本归并');
+            continue;
+        }
         
         // 检查是否命中合并映射表中的强制特权规则
         const customRule = getMatchingCustomRule(primaryAnime, secAnime);
