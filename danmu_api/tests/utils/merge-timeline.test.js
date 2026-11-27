@@ -135,14 +135,33 @@ test('alignSourceTimelines keeps p, t and progress timestamps synchronized', () 
   const shifted = [
     { m: '时间格式锚点甲', p: '40,1,25,16777215', t: 40, progress: 40000 },
     { m: '时间格式锚点乙', p: '110,1,25,16777215', t: 110, progress: 110000 },
-    { m: '需要同步更新的弹幕', p: '150,1,25,16777215', t: 150, progress: 150000 },
+    { m: '需要同步更新的弹幕', p: '100,1,25,16777215', t: 100, progress: 100000 },
   ];
 
   alignSourceTimelines([reference, shifted], ['iqiyi', 'youku'], ['a', 'b']);
 
-  assert.deepEqual(shifted.map(item => item.p.split(',')[0]), ['10.00', '80.00', '120.00']);
-  assert.deepEqual(shifted.map(item => item.t), [10, 80, 120]);
-  assert.deepEqual(shifted.map(item => item.progress), [10000, 80000, 120000]);
+  assert.deepEqual(shifted.map(item => item.p.split(',')[0]), ['10.00', '80.00', '70.00']);
+  assert.deepEqual(shifted.map(item => item.t), [10, 80, 70]);
+  assert.deepEqual(shifted.map(item => item.progress), [10000, 80000, 70000]);
+});
+
+test('alignSourceTimelines does not extrapolate a constant offset beyond anchor coverage', () => {
+  const reference = [
+    { m: '固定偏移锚点甲', t: 10 },
+    { m: '固定偏移锚点乙', t: 80 },
+    { m: '参照源独有弹幕', t: 120 },
+  ];
+  const shifted = [
+    { m: '固定偏移锚点甲', t: 40 },
+    { m: '固定偏移锚点乙', t: 110 },
+    { m: '锚点覆盖内', t: 100 },
+    { m: '锚点覆盖前', t: 5 },
+    { m: '锚点覆盖后', t: 150 },
+  ];
+
+  alignSourceTimelines([reference, shifted], ['iqiyi', 'youku'], ['a', 'b']);
+
+  assert.deepEqual(shifted.map(item => item.t), [10, 80, 70, 5, 150]);
 });
 
 test('alignSourceTimelines does not extrapolate piecewise offsets beyond anchor coverage', () => {
