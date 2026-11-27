@@ -2,7 +2,7 @@ import BaseSource from './base.js';
 import { globals } from '../configs/globals.js';
 import { log } from "../utils/log-util.js";
 import { buildQueryString, httpGet, httpPost } from "../utils/http-util.js";
-import { printFirst200Chars, titleMatches, getExplicitSeasonNumber, extractSeasonNumberFromAnimeTitle } from "../utils/common-util.js";
+import { printFirst200Chars, titleMatches, getExplicitSeasonNumber, extractSeasonNumberFromAnimeTitle, convertChineseNumber } from "../utils/common-util.js";
 import { md5, convertToAsciiSum } from "../utils/codec-util.js";
 import { generateValidStartDate } from "../utils/time-util.js";
 import { addAnime, removeEarliestAnime } from "../utils/cache-util.js";
@@ -371,8 +371,8 @@ export default class YoukuSource extends BaseSource {
    */
   _formatEpisodeTitle(ep, episodeIndex, mediaType) {
     // 清理 displayName (移除日期前缀)
-    let cleanDisplayName = ep.displayName || ep.title;
-    const datePattern = /^(?:\d{2,4}-\d{2}-\d{2}|\d{2}-\d{2})\s*(?=(?:第\d+期))|^(?:\d{2,4}-\d{2}-\d{2}|\d{2}-\d{2})\s*:\s*/;
+    let cleanDisplayName = ep.displayName || ep.title || '';
+    const datePattern = /^(?:\d{2,4}-\d{2}-\d{2}|\d{2}-\d{2})\s*(?=(?:第[0-9一二三四五六七八九十百千万]+期))|^(?:\d{2,4}-\d{2}-\d{2}|\d{2}-\d{2})\s*:\s*/;
     cleanDisplayName = cleanDisplayName.replace(datePattern, '').trim();
 
     // 电影：直接使用原始标题
@@ -380,14 +380,17 @@ export default class YoukuSource extends BaseSource {
       return cleanDisplayName;
     }
 
-    // 综艺：使用 "第N期" 格式
+    // 综艺：保留接口自带的期数与上下半期标记，避免重复拼接「第N期」。
     if (mediaType === 'variety') {
-      const periodMatch = cleanDisplayName.match(/第(\d+)期/);
-      if (periodMatch) {
-        return `第${periodMatch[1]}期 ${ep.published?.split(' ')[0] ?? ''} ${cleanDisplayName}`;
-      } else {
-        return `第${episodeIndex}期 ${ep.published?.split(' ')[0] ?? ''} ${cleanDisplayName}`;
-      }
+      const periodMatch = cleanDisplayName.match(/第\s*([0-9一二三四五六七八九十百千万]+)\s*期(上|下|中)?/);
+      const periodNumber = periodMatch ? convertChineseNumber(periodMatch[1]) : episodeIndex;
+      const periodPart = periodMatch?.[2] || '';
+      const periodLabel = `第${periodNumber}期${periodPart}`;
+      const description = periodMatch
+        ? cleanDisplayName.replace(periodMatch[0], '').trim()
+        : cleanDisplayName;
+      const publishedDate = ep.published?.split(' ')[0] ?? '';
+      return [periodLabel, publishedDate, description].filter(Boolean).join(' ');
     }
 
     // 电视剧/动漫：使用 "第N集" 格式 + 原始标题
