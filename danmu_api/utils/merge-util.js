@@ -3677,48 +3677,43 @@ export function alignSourceTimelines(results, sourceNames, realIds, minMatchRati
         const counts = new Map();
         (Array.isArray(list) ? list : []).forEach(item => {
             const text = normalizeText(getDanmuText(item));
-            if (!text) return;
-            counts.set(text, (counts.get(text) || 0) + 1);
+            if (text) counts.set(text, (counts.get(text) || 0) + 1);
         });
         return counts;
     });
 
-    // 只用两边都恰好出现一次的文本作为时间锚点，避免“哈哈”等重复评论制造笛卡尔积误配。
-    const referenceIndex = results.reduce((bestIndex, list, index) => {
-        if (!Array.isArray(list) || list.length === 0 || textCounts[index].size === 0) return bestIndex;
-        if (bestIndex < 0) return index;
-        const overlapScore = (candidateIndex) => {
-            let score = 0;
-            for (const [text, count] of textCounts[candidateIndex]) {
-                if (count === 1 && textCounts.some((other, otherIndex) =>
-                    otherIndex !== candidateIndex && other.get(text) === 1)) score++;
-            }
-            return score;
-        };
-        const score = overlapScore(index);
-        const bestScore = overlapScore(bestIndex);
-        return score > bestScore || (score === bestScore && list.length > results[bestIndex].length)
-            ? index : bestIndex;
-    }, -1);
-
-    if (referenceIndex < 0) {
-        log("info", "[merge][aligntimeline] 没有可用于跨源比对的弹幕列表，跳过时间轴对齐");
+    // 选择跨来源唯一文本锚点最多的参照源，不绑定特定平台。
+    const overlapScore = (index) => {
+        let score = 0;
+        for (const [text, count] of textCounts[index]) {
+            if (count === 1 && textCounts.some((other, otherIndex) =>
+                otherIndex !== index && other.get(text) === 1)) score++;
+        }
+        return score;
+    };
+    let referenceIndex = -1;
+    for (let i = 0; i < results.length; i++) {
+        if (!Array.isArray(results[i]) || results[i].length === 0) continue;
+        if (referenceIndex < 0 || overlapScore(i) > overlapScore(referenceIndex) ||
+            (overlapScore(i) === overlapScore(referenceIndex) && results[i].length > results[referenceIndex].length)) {
+            referenceIndex = i;
+        }
+    }
+    if (referenceIndex < 0 || overlapScore(referenceIndex) === 0) {
+        log("info", "[merge][aligntimeline] 没有足够的共同弹幕锚点，跳过时间轴校准");
         return results;
     }
 
     const referenceName = sourceNames[referenceIndex] || String(referenceIndex);
-    const referenceList = results[referenceIndex];
     const referenceTimes = new Map();
-    referenceList.forEach(item => {
+    results[referenceIndex].forEach(item => {
         const text = normalizeText(getDanmuText(item));
         const time = getDanmuTime(item);
-        if (text && Number.isFinite(time)) {
-            if (!referenceTimes.has(text)) referenceTimes.set(text, []);
-            referenceTimes.get(text).push(time);
-        }
+        if (!text || !Number.isFinite(time)) return;
+        if (!referenceTimes.has(text)) referenceTimes.set(text, []);
+        referenceTimes.get(text).push(time);
     });
-
-    log("info", `[merge][aligntimeline] 选择 ${referenceName}:${realIds?.[referenceIndex] || ''} 作为本轮共同内容参照`);
+    log("info", `[merge][aligntimeline] 选择 ${referenceName}:${realIds?.[referenceIndex] || ''} 作为共同内容参照`);
 
     results.forEach((list, idx) => {
         if (idx === referenceIndex || !Array.isArray(list) || !list.length) return;
@@ -3727,56 +3722,83 @@ export function alignSourceTimelines(results, sourceNames, realIds, minMatchRati
         list.forEach(item => {
             const text = normalizeText(getDanmuText(item));
             const time = getDanmuTime(item);
-            if (text && Number.isFinite(time)) {
-                if (!sourceTimes.has(text)) sourceTimes.set(text, []);
-                sourceTimes.get(text).push(time);
-            }
+            if (!text || !Number.isFinite(time)) return;
+            if (!sourceTimes.has(text)) sourceTimes.set(text, []);
+            sourceTimes.get(text).push(time);
         });
 
-        const anchorOffsets = [];
+        const anchors = [];
         for (const [text, times] of sourceTimes) {
             const reference = referenceTimes.get(text);
             if (times.length === 1 && reference?.length === 1) {
-                anchorOffsets.push(times[0] - reference[0]);
+                anchors.push({ sourceTime: times[0], referenceTime: reference[0], offset: times[0] - reference[0] });
             }
         }
-        if (anchorOffsets.length < 2) {
-            log("info", `[merge][aligntimeline] ${sourceName}:${realIds?.[idx] || ''} 唯一文本锚点不足，跳过对齐`);
+        anchors.sort((a, b) => a.sourceTime - b.sourceTime);
+        if (anchors.length < 2) {
+            log("info", `[merge][aligntimeline] ${sourceName} 唯一文本锚点不足，跳过校准`);
             return;
         }
 
-        // 以 ±2 秒为一致性窗口，选取票数最多的偏移簇，并用簇内中位数降低单条时间误差。
-        let bestCluster = [];
-        for (const candidate of anchorOffsets) {
-            const cluster = anchorOffsets.filter(offset => Math.abs(offset - candidate) <= 2);
-            if (cluster.length > bestCluster.length) bestCluster = cluster;
-        }
-        const matchRatio = bestCluster.length / anchorOffsets.length;
-        if (matchRatio < minMatchRatio || bestCluster.length < 2) {
-            log("info", `[merge][aligntimeline] ${sourceName}:${realIds?.[idx] || ''} 唯一文本锚点偏移不一致，跳过对齐`);
-            return;
-        }
-        bestCluster.sort((a, b) => a - b);
-        const middle = Math.floor(bestCluster.length / 2);
-        const bestOffset = bestCluster.length % 2
-            ? bestCluster[middle]
-            : (bestCluster[middle - 1] + bestCluster[middle]) / 2;
-
-        if (Math.abs(bestOffset) < offsetThreshold) {
-            log("info", `[merge][aligntimeline] ${sourceName}:${realIds?.[idx] || ''} 与参照时间轴偏差 ${bestOffset}s，低于阈值`);
-            return;
+        // 若锚点顺序发生倒置，说明可能匹配到不同剪辑/重复片段，不能安全校准。
+        for (let i = 1; i < anchors.length; i++) {
+            if (anchors[i].referenceTime <= anchors[i - 1].referenceTime) {
+                log("info", `[merge][aligntimeline] ${sourceName} 锚点顺序不一致，跳过校准`);
+                return;
+            }
         }
 
-        log("info", `[merge][aligntimeline] ${sourceName}:${realIds?.[idx] || ''} 相对参照 ${referenceName} 校准 ${bestOffset}s (唯一文本锚点 ${bestCluster.length}/${anchorOffsets.length})`);
+        // 将时间偏移相近且连续的锚点分组；剪掉广告后，偏移会在剪辑点发生阶跃变化。
+        const rawGroups = [];
+        for (const anchor of anchors) {
+            const current = rawGroups[rawGroups.length - 1];
+            if (!current || Math.abs(anchor.offset - current[current.length - 1].offset) > 2) {
+                rawGroups.push([anchor]);
+            } else {
+                current.push(anchor);
+            }
+        }
+        const validGroups = rawGroups.filter(group => group.length >= 2);
+        const supportedAnchorCount = validGroups.reduce((sum, group) => sum + group.length, 0);
+        if (validGroups.length === 0 || supportedAnchorCount / anchors.length < minMatchRatio) {
+            log("info", `[merge][aligntimeline] ${sourceName} 分段锚点证据不足（${supportedAnchorCount}/${anchors.length}），跳过校准`);
+            return;
+        }
+
+        const segments = validGroups.map(group => {
+            const offsets = group.map(anchor => anchor.offset).sort((a, b) => a - b);
+            const middle = Math.floor(offsets.length / 2);
+            const offset = offsets.length % 2 ? offsets[middle] : (offsets[middle - 1] + offsets[middle]) / 2;
+            return {
+                start: group[0].sourceTime,
+                end: group[group.length - 1].sourceTime,
+                offset,
+                anchorCount: group.length
+            };
+        });
+
+        // 相邻偏移段之间以锚点时间中点作为剪辑边界；不向证据覆盖范围之外外推。
+        const boundaries = [];
+        for (let i = 0; i < segments.length - 1; i++) {
+            boundaries.push((segments[i].end + segments[i + 1].start) / 2);
+        }
+        const minTime = anchors[0].sourceTime;
+        const maxTime = anchors[anchors.length - 1].sourceTime;
+        let corrected = 0;
         list.forEach(danmu => {
             const time = getDanmuTime(danmu);
-            if (!Number.isFinite(time)) return;
-            const targetTime = Math.max(0, time - bestOffset);
+            if (!Number.isFinite(time) || time < minTime || time > maxTime) return;
+            let segmentIndex = boundaries.findIndex(boundary => time <= boundary);
+            if (segmentIndex < 0) segmentIndex = segments.length - 1;
+            const offset = segments[segmentIndex].offset;
+            if (Math.abs(offset) < offsetThreshold) return;
+            const targetTime = Math.max(0, time - offset);
             if (typeof danmu.p === 'string') danmu.p = danmu.p.replace(/^[^,]+(?=,)/, targetTime.toFixed(2));
             if (danmu.t != null) danmu.t = targetTime;
             if (typeof danmu.progress === 'number') danmu.progress = Math.round(targetTime * 1000);
+            corrected++;
         });
+        log("info", `[merge][aligntimeline] ${sourceName} 按 ${segments.length} 个时间段相对 ${referenceName} 校准，覆盖锚点范围 ${minTime}-${maxTime}s，处理 ${corrected} 条弹幕`);
     });
-
     return results;
 }
