@@ -84,9 +84,14 @@ test('版本筛选严格隔离特殊版，不让普通版命中特殊版', () =>
     '分集标题没有版本词时，可使用节目条目标题中的版本标记'
   );
   assert.deepEqual(
-    filterEpisodesByEdition([{ episodeId: 'unknown', episodeTitle: '第3集' }], 'standard'),
+    filterEpisodesByEdition([{ episodeId: 'unknown', episodeTitle: '第3集' }], 'standard').map(ep => ep.episodeId),
+    ['unknown'],
+    '未标记候选兼容普通正片，避免常规剧集全部失去匹配'
+  );
+  assert.deepEqual(
+    filterEpisodesByEdition([{ episodeId: 'unknown', episodeTitle: '第3集' }], 'plus'),
     [],
-    '分集标题和节目标题均无版本信息时，不得猜测为正片'
+    '特殊版本没有明确版本证据时必须拒绝匹配'
   );
   assert.deepEqual(
     filterEpisodesByEdition([
