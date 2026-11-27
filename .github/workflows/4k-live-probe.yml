@@ -41,7 +41,9 @@ jobs:
           const links = [];
           for (const m of firstHtml.matchAll(/<a\b[^>]*href=["'](\/play\/[^"'#?]+)["'][^>]*>/gi)) {
             const tag = m[0];
-            const getAttr = name => tag.match(new RegExp('\\b' + name + '=["']([^"']*)["']','i'))?.[1] || '';
+            const episode = tag.match(/data-episode=[\"']([^\"']*)[\"']/i)?.[1] || '';
+            const line = tag.match(/data-line=[\"']([^\"']*)[\"']/i)?.[1] || '';
+            const dataid = tag.match(/dataid=[\"']([^\"']*)[\"']/i)?.[1] || '';
             const episode = getAttr('data-episode');
             const line = getAttr('data-line');
             const dataid = getAttr('dataid');
