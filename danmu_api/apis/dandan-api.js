@@ -2337,7 +2337,8 @@ export async function fallbackMatchAniAndEp(searchData, req, season, episode, ye
     }
   }
 
-  for (const anime of [...sameSeasonAnimes, ...restAnimes]) {
+  const fallbackAnimes = periodPart && season ? sameSeasonAnimes : [...sameSeasonAnimes, ...restAnimes];
+  for (const anime of fallbackAnimes) {
     // 年份匹配优先（如果提供了年份）
     if (year && !matchYear(anime, year)) {
       log("info", `[system] [match] Fallback: Year mismatch: anime year ${extractYear(anime.animeTitle)} vs query year ${year}`);
@@ -2382,7 +2383,7 @@ export async function fallbackMatchAniAndEp(searchData, req, season, episode, ye
 
   // 跨季兜底溢出查找逻辑
   let isSpillover = false;
-  if (!resEpisode && hasSeasonEpisode(season, episode) && edition === 'standard') {
+  if (!resEpisode && !periodPart && hasSeasonEpisode(season, episode) && edition === 'standard') {
     const spilloverRes = findCrossSeasonEpisodeMap(preference?.seriesData || searchData, title, year, season, episode, null, detailStore, preference);
     if (spilloverRes.resEpisode) {
       resEpisode = spilloverRes.resEpisode;
