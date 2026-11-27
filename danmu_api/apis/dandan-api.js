@@ -318,7 +318,7 @@ export function filterEpisodesByEdition(episodes, requestedEdition = 'standard')
   );
 }
 
-function filterEpisodesByTitle(episodes) {
+export function filterEpisodesByTitle(episodes) {
   return episodes.filter(episode => !globals.episodeTitleFilter.test(episode.episodeTitle ?? episode.title));
 }
 
