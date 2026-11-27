@@ -235,10 +235,11 @@ export function strictTitleMatch(title, query) {
  * @param {string} text 需要解析的文本
  * @returns {number|null} 提取出的季度数字，未匹配到时返回 null
  */
-export function getExplicitSeasonNumber(text) {
+export function getExplicitSeasonNumber(text, includePeriod = true) {
   if (!text) return null;
-  // 「期」属于综艺单期编号，不是季度；不能参与跨季过滤。
-  const match = text.match(/(?:第\s*([0-9一二三四五六七八九十百千万]+)\s*[季部])|(?:S(?:eason)?\s*(\d+))|(?:Part\s*(\d+))/i);
+  // 默认保留历史行为（「期」可被提取）；标题季度匹配显式传 false，避免把综艺期数当作季数。
+  const periodMarker = includePeriod ? '季期部' : '季部';
+  const match = text.match(new RegExp(`(?:第\\\\s*([0-9一二三四五六七八九十百千万]+)\\\\s*[\\\\${periodMarker}])|(?:S(?:eason)?\\\\s*(\\\\d+))|(?:Part\\\\s*(\\\\d+))`, 'i'));
   if (match) {
     const numStr = match[1] || match[2] || match[3];
     if (numStr) {
@@ -298,7 +299,7 @@ export function titleMatches(title, query, parsedSeason = null, forceNonStrict =
   let qList = [q];
 
   // 季度特征提取：提前提取季数以支撑策略2的去季包含匹配
-  const querySeason = parsedSeason !== null ? parsedSeason : getExplicitSeasonNumber(queryText);
+  const querySeason = parsedSeason !== null ? parsedSeason : getExplicitSeasonNumber(queryText, false);
 
   // 综艺单期查询（如「奔跑吧第1期」）要回退到节目名匹配；「期」不能被当作季号。
   const periodStripped = queryText.replace(/第\s*[0-9一二三四五六七八九十百千万]+\s*期/g, '').trim();
@@ -326,7 +327,7 @@ export function titleMatches(title, query, parsedSeason = null, forceNonStrict =
 
   // 季度特征校验：先于包含匹配执行，确保错误季度的标题不会因干净查询词误通过
   if (querySeason !== null) {
-    const titleSeason = getExplicitSeasonNumber(titleText);
+    const titleSeason = getExplicitSeasonNumber(titleText, false);
 
     if (querySeason > 1) {
       // 搜索指定续作(>1)时，仅当源标题明确包含季号时才校验季号一致性
@@ -482,12 +483,15 @@ export function extractSeasonNumberFromAnimeTitle(animeTitle) {
 }
 
 // 从集标题中提取集数（支持多种格式：第1集、第01集、EP01、E01等）
-export function extractEpisodeNumberFromTitle(episodeTitle, ordinalOnly = false) {
+export function extractEpisodeNumberFromTitle(episodeTitle, ordinalOnly = false, includePeriod = false) {
   if (!episodeTitle) return null;
   if (ordinalOnly) episodeTitle = episodeTitle.replace(/(?<!\d)(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])(?!\d)/g, ' ');
 
-  // 匹配格式：第1集、第01集、第1话、第1回等
-  const chineseMatch = episodeTitle.match(/第\s*([0-9一二三四五六七八九十百千万]+)\s*[集话回期]/);
+  // 默认只提取连续剧集号；综艺期数仅在 ordinalOnly/includePeriod 场景中提取，避免把上/中/下半期合并。
+  const episodePattern = ordinalOnly || includePeriod
+    ? /第\s*([0-9一二三四五六七八九十百千万]+)\s*[集话回期]/
+    : /第\s*([0-9一二三四五六七八九十百千万]+)\s*[集话回]/;
+  const chineseMatch = episodeTitle.match(episodePattern);
   if (chineseMatch) {
     return convertChineseNumber(chineseMatch[1]);
   }
