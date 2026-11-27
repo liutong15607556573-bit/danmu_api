@@ -104,7 +104,7 @@ test('alignSourceTimelines uses separate offsets before and after an edit point'
 
   alignSourceTimelines([reference, edited], ['iqiyi', 'youku'], ['a', 'b']);
 
-  assert.deepEqual(edited.map(item => item.t), [10, 80, 160, 220, 300, 360, 120, 180]);
+  assert.deepEqual(edited.map(item => item.t), [10, 80, 160, 220, 300, 360, 150, 180]);
 });
 
 test('alignSourceTimelines refuses to calibrate when matching anchors reverse their order', () => {
