@@ -910,7 +910,7 @@ test('merge applyMergeLogic 不跨不同剪辑版本归并来源', async () => {
     type: '电视剧',
     typeDescription: '电视剧',
     startDate: '2026-01-01T00:00:00.000Z',
-    links: titles.map((title, i) => ({ title: \`【\${source}】 \${title}\`, url: \`\${source}:\${animeId}:\${i}\` })),
+    links: titles.map((title, i) => ({ title: `【${source}】 ${title}`, url: `${source}:${animeId}:${i}` })),
     episodeCount: titles.length,
   });
 
