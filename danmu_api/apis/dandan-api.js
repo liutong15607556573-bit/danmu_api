@@ -348,7 +348,15 @@ export function filterEpisodesByEdition(episodes, requestedEdition = 'standard',
 }
 
 export function filterEpisodesByTitle(episodes) {
-  return episodes.filter(episode => !globals.episodeTitleFilter.test(episode.episodeTitle ?? episode.title));
+  return (episodes || []).filter(episode => {
+    // 不同弹幕源对同一集可能同时返回 episodeTitle 与 title，且两者内容并不一致。
+    // 只检查 episodeTitle 会让 title 中标明的「先导片/预告/加更」漏过过滤，随后被当作正片按序号选中。
+    const titles = [episode?.episodeTitle, episode?.title]
+      .filter(value => value !== null && value !== undefined && String(value).trim())
+      .map(value => String(value).trim());
+    if (titles.length === 0) return true;
+    return !titles.some(value => globals.episodeTitleFilter.test(value));
+  });
 }
 
 // 按集标题过滤剧集，并把过滤后的可用集数写回该动漫
