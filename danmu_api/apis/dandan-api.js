@@ -1695,7 +1695,7 @@ async function matchAniAndEpByAi(season, episode, year, searchData, title, req, 
     } else {
         // 电影模式逻辑
         if (bangumiData.bangumi.episodes.length > 0) {
-          filteredEpisode = selectMovieEpisode(bangumiData.bangumi.episodes, selectedAnime, (strictPlatform || hasTitlePreference) ? preferredPlatform : null, hasTitlePreference);
+          filteredEpisode = selectMovieEpisode(bangumiData.bangumi.episodes, selectedAnime, (strictPlatform || hasTitlePreference) ? preferredPlatform : null, hasTitlePreference || Boolean(strictPlatform));
         }
     }
 
@@ -2040,7 +2040,7 @@ function findCrossSeasonEpisodeMap(searchData, title, year, season, episode, pla
   return { resEpisode: bestRes.episode, resAnime: bestRes.anime };
 }
 
-export async function matchAniAndEp(season, episode, year, searchData, title, req, platform, preferAnimeId, offsets, detailStore = null, hasTitlePreference = false, exactOnly = false) {
+export async function matchAniAndEp(season, episode, year, searchData, title, req, platform, preferAnimeId, offsets, detailStore = null, hasTitlePreference = false, exactOnly = false, strictPlatform = null) {
   // 定义最佳匹配结果容器
   let bestRes = {
     anime: null,
@@ -2169,7 +2169,7 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
         }
 
         // 如果当前是用户的优选偏好，但由于平台配置限制导致未命中目标平台，则放宽条件无视平台限制提取集数
-        if (!matchedEpisode && isPreferredAnime) {
+        if (!matchedEpisode && isPreferredAnime && !strictPlatform) {
             log("info", `[system] [match] 优选剧集未命中目标平台 ${platform}，放宽条件提取集数`);
             matchedEpisode = findEpisodeByNumber(filteredEpisodes, episode, targetEpisode, null, options);
         }
@@ -2177,7 +2177,7 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
         // 电影模式逻辑
         const episodes = bangumiData.bangumi.episodes;
         matchedEpisode = selectMovieEpisode(episodes, anime, platform, hasTitlePreference);
-        if (!matchedEpisode && isPreferredAnime && episodes.length) {
+        if (!matchedEpisode && isPreferredAnime && episodes.length && !strictPlatform) {
             log("info", `[system] [match] 优选电影未命中目标平台 ${platform}，放宽条件提取资源`);
             matchedEpisode = episodes[0];
         } else if (!matchedEpisode && platform && episodes.length) {
@@ -2246,7 +2246,7 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
   }
 
   //  跨季集数顺延映射匹配逻辑
-  if (!hasTitlePreference && !bestRes.episode && hasSeasonEpisode(season, episode)) {
+  if (!strictPlatform && !hasTitlePreference && !bestRes.episode && hasSeasonEpisode(season, episode)) {
     const spilloverRes = findCrossSeasonEpisodeMap(searchData, title, year, season, episode, platform, detailStore);
     if (spilloverRes.resEpisode) {
       bestRes = {
@@ -2506,7 +2506,7 @@ async function selectAnimeMatch({ season, episode, year, searchData, title, req,
   for (const exactOnly of (preference && hasSeasonEpisode(season, episode) ? [true, false] : [false])) {
     for (const platform of dynamicPlatformOrder) {
       const matched = await matchAniAndEp(
-        season, episode, year, directData, title, req, platform, preferAnimeId, offsets, detailStore, hasTitlePreference, exactOnly
+        season, episode, year, directData, title, req, platform, preferAnimeId, offsets, detailStore, hasTitlePreference, exactOnly, strictPlatform
       );
       platformAttempts.push({
         platform: platform || '默认',
