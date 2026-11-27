@@ -367,7 +367,7 @@ test('resolveSourceOrder 过滤非法源并回退默认顺序', () => {
     assert.deepStrictEqual(Envs.accessedEnvVars.get('SOURCE_ORDER'), ['dandan', 'local']);
 
     initEnvs({ SOURCE_ORDER: 'nope,unknown' });
-    assert.deepStrictEqual(Envs.resolveSourceOrder(), ['iqiyi', 'tencent', 'youku', 'douban', '360', 'renren', 'hanjutv', 'acfun', 'tmdb', 'aiyifan']);
+    assert.deepStrictEqual(Envs.resolveSourceOrder(), ['iqiyi', 'tencent', 'youku', 'douban', '360', 'renren', 'hanjutv', 'acfun', 'tmdb', '4k', 'aiyifan']);
     assert.deepStrictEqual(Envs.accessedEnvVars.get('SOURCE_ORDER'), []);
 
     initEnvs({});
