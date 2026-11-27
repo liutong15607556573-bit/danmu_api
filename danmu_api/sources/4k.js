@@ -58,6 +58,21 @@ export function parse4kEpisodes(html = '', detailSlug = '') {
   return episodes.sort((a, b) => a.number - b.number);
 }
 
+export function normalize4kDanmaku(items = []) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter(item => item && typeof item.content === 'string' && Number.isFinite(Number(item.time)))
+    .map(item => {
+      const parsedColor = parseInt(String(item.color || '#FFFFFF').replace('#', ''), 16);
+      return {
+        timepoint: Number(item.time),
+        ct: Number.isFinite(Number(item.mode)) ? Number(item.mode) : 1,
+        color: Number.isFinite(parsedColor) ? parsedColor : 16777215,
+        content: item.content
+      };
+    });
+}
+
 export function parse4kPlayerMetadata(html = '') {
   const source = String(html);
   const player = source.match(/<[^>]*data-danmaku-api-url=["']([^"']+)["'][^>]*data-danmaku-enabled=["']true["'][^>]*>/i)
@@ -182,13 +197,7 @@ export default class FourKSource extends BaseSource {
         });
         const payload = response.data;
         if (!payload || payload.code !== 0 || !Array.isArray(payload.data)) return [];
-        return payload.data.filter(item => item && typeof item.content === 'string' && Number.isFinite(Number(item.time)))
-          .map(item => ({
-            timepoint: Number(item.time),
-            ct: Number.isFinite(Number(item.mode)) ? Number(item.mode) : 1,
-            color: Number.isFinite(parseInt(String(item.color || '#FFFFFF').replace('#', ''), 16)) ? parseInt(String(item.color || '#FFFFFF').replace('#', ''), 16) : 16777215,
-            content: item.content
-          }));
+        return normalize4kDanmaku(payload.data);
       } catch (error) {
         log('warn', `[4k] 弹幕获取失败: ${error.message}`);
         return [];
