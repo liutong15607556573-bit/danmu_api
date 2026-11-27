@@ -31,3 +31,32 @@ test('alignSourceTimelines leaves sources unchanged when shared evidence is insu
 
   assert.deepEqual([sourceA, sourceB], before);
 });
+
+test('alignSourceTimelines handles repeated identical comments without matching every one to the first occurrence', () => {
+  const reference = [
+    { m: '哈哈', t: 10 },
+    { m: '嘉宾登场', t: 80 },
+    { m: '哈哈', t: 160 },
+    { m: '第一轮开始', t: 220 },
+  ];
+  const shifted = [
+    { m: '哈哈', t: 40 },
+    { m: '嘉宾登场', t: 110 },
+    { m: '哈哈', t: 190 },
+    { m: '第一轮开始', t: 250 },
+  ];
+
+  alignSourceTimelines([reference, shifted], ['iqiyi', 'youku'], ['a', 'b']);
+
+  assert.deepEqual(shifted.map(item => item.t), [10, 80, 160, 220]);
+});
+
+test('alignSourceTimelines does not calibrate from a single repeated phrase', () => {
+  const reference = [{ m: '哈哈', t: 10 }, { m: '哈哈', t: 80 }, { m: '哈哈', t: 160 }];
+  const shifted = [{ m: '哈哈', t: 40 }, { m: '哈哈', t: 110 }, { m: '哈哈', t: 190 }];
+  const before = structuredClone(shifted);
+
+  alignSourceTimelines([reference, shifted], ['iqiyi', 'youku'], ['a', 'b']);
+
+  assert.deepEqual(shifted, before);
+});
