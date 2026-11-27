@@ -302,21 +302,30 @@ export function resolveEpisodeCount(declaredCount, availableCount) {
 export function classifyEpisodeEdition(value) {
   const text = String(value || '').toLowerCase();
   const patterns = [
-    ['pure', /(?:^|[.\s_-])(?:pure|uncut)(?=$|[.\s_-])|纯享版|纯享/i],
-    ['plus', /(?:^|[.\s_-])(?:plus|extra)(?=$|[.\s_-])|加更版|加更/i],
-    ['special', /(?:^|[.\s_-])(?:special|sp)(?=$|[.\s_-])|特辑|特别篇/i],
-    ['live', /(?:^|[.\s_-])(?:live|concert)(?=$|[.\s_-])|直播回放|直播/i],
+    ['pure', /(?:^|[.\\s_-])(?:pure|uncut)(?=$|[.\\s_-])|纯享版|纯享/i],
+    ['plus', /(?:^|[.\\s_-])(?:plus|extra)(?=$|[.\\s_-])|加更版|加更/i],
+    ['special', /(?:^|[.\\s_-])(?:special|sp)(?=$|[.\\s_-])|特辑|特别篇/i],
+    ['live', /(?:^|[.\\s_-])(?:live|concert)(?=$|[.\\s_-])|直播回放|直播/i],
   ];
   for (const [edition, pattern] of patterns) if (pattern.test(text)) return edition;
   return 'standard';
 }
 
+// 候选来源没有明确版本词时返回 null，不能把“未标记”误当成普通正片。
+export function detectExplicitEpisodeEdition(value) {
+  const text = String(value || '').toLowerCase();
+  const specialEdition = classifyEpisodeEdition(text);
+  if (specialEdition !== 'standard') return specialEdition;
+  if (/(?:^|[.\\s_-])standard(?=$|[.\\s_-])|正片|普通版|完整版|完整正片/i.test(text)) return 'standard';
+  return null;
+}
+
 export function filterEpisodesByEdition(episodes, requestedEdition = 'standard', animeTitle = '') {
   const requested = requestedEdition || 'standard';
-  const animeEdition = classifyEpisodeEdition(animeTitle);
+  const animeEdition = detectExplicitEpisodeEdition(animeTitle);
   return (episodes || []).filter(episode => {
-    const episodeEdition = classifyEpisodeEdition(episode?.episodeTitle ?? episode?.title ?? '');
-    const actualEdition = episodeEdition === 'standard' ? animeEdition : episodeEdition;
+    const episodeEdition = detectExplicitEpisodeEdition(episode?.episodeTitle ?? episode?.title ?? '');
+    const actualEdition = episodeEdition || animeEdition;
     return actualEdition === requested;
   });
 }
@@ -2521,7 +2530,9 @@ async function selectAnimeMatch({ season, episode, year, searchData, title, req,
   const aiMatchResult = await matchAniAndEpByAi(
     season, episode, year, directData, title, req, dynamicPlatformOrder, preferAnimeId, detailStore, hasTitlePreference
   );
-  if (aiMatchResult.resAnime && aiMatchResult.resEpisode && (classifyEpisodeEdition(aiMatchResult.resEpisode.episodeTitle) === 'standard' ? classifyEpisodeEdition(aiMatchResult.resAnime?.animeTitle) : classifyEpisodeEdition(aiMatchResult.resEpisode.episodeTitle)) === (edition || 'standard')) {
+  const aiEpisodeEdition = detectExplicitEpisodeEdition(aiMatchResult.resEpisode?.episodeTitle)
+    || detectExplicitEpisodeEdition(aiMatchResult.resAnime?.animeTitle);
+  if (aiMatchResult.resAnime && aiMatchResult.resEpisode && aiEpisodeEdition === (edition || 'standard')) {
     // AI 直接给出结果，没有逐平台评分
     return { resAnime: aiMatchResult.resAnime, resEpisode: aiMatchResult.resEpisode, spilloverMatched: false, platformAttempts: [] };
   }
