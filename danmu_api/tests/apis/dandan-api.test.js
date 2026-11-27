@@ -6,7 +6,7 @@ dotenv.config();
 
 import test from 'node:test';
 import assert from 'node:assert';
-import { extractTitleSeasonEpisode, buildSearchAnimeUrl, matchSeason, matchAniAndEp, fallbackMatchAniAndEp, filterSameEpisodeTitle, buildBangumiData, resolveEpisodeCount, applyEpisodeTitleFilter, filterEpisodesByTitle, withAvailableEpisodeCount, buildMatchScoring, resolveSegmentCommentCacheKey } from '../../apis/dandan-api.js';
+import { extractTitleSeasonEpisode, buildSearchAnimeUrl, matchSeason, matchAniAndEp, fallbackMatchAniAndEp, filterSameEpisodeTitle, buildBangumiData, resolveEpisodeCount, applyEpisodeTitleFilter, filterEpisodesByTitle, filterEpisodesByEdition, classifyEpisodeEdition, withAvailableEpisodeCount, buildMatchScoring, resolveSegmentCommentCacheKey } from '../../apis/dandan-api.js';
 import { getSearchCache, setSearchCache } from '../../utils/cache-util.js';
 import { addFavorite, removeFavorite, saveFavorites } from '../../utils/favorite-util.js';
 import { Globals, globals } from '../../configs/globals.js';
@@ -31,6 +31,36 @@ test('buildSearchAnimeUrl should derive /search/anime from /search/episodes requ
     assert.equal(searchUrl.searchParams.has('episode'), false);
   });
   // 测试标题解析
+test('文件名版本标记识别 Pure/Plus/Special/Live，忽略清晰度编码', async () => {
+  const cases = [
+    ['Natural.High.S04E03.2026.1080p.TX.WEB-DL.H265.AAC', 'standard'],
+    ['Natural.High.S04E03.Pure.2026.2160p.WEB-DL.H265', 'pure'],
+    ['Natural.High.S04E03.Plus.2026.1080p.WEB-DL.H265', 'plus'],
+    ['Natural.High.S04E03.Special.2026.1080p.WEB-DL.H265', 'special'],
+    ['Natural.High.S04E03.Live.2026.1080p.WEB-DL.H265', 'live'],
+  ];
+  for (const [filename, edition] of cases) {
+    const parsed = await extractTitleSeasonEpisode(filename);
+    assert.equal(parsed.edition, edition, filename);
+    assert.equal(parsed.title, 'Natural High');
+    assert.equal(parsed.season, 4);
+    assert.equal(parsed.episode, 3);
+  }
+});
+
+test('版本筛选严格隔离特殊版，不让普通版命中特殊版', () => {
+  const episodes = [
+    { episodeId: 'standard', episodeTitle: '第3集 正片' },
+    { episodeId: 'pure', episodeTitle: '第3集 Pure 纯享版' },
+    { episodeId: 'plus', episodeTitle: '第3集 Plus 加更版' },
+    { episodeId: 'special', episodeTitle: '第3集 Special 特辑' },
+    { episodeId: 'live', episodeTitle: '第3集 Live 直播回放' },
+  ];
+  for (const edition of ['standard', 'pure', 'plus', 'special', 'live']) {
+    assert.deepEqual(filterEpisodesByEdition(episodes, edition).map(ep => ep.episodeId), [edition]);
+  }
+});
+
 test('PARSE TitleSeasonEpisode', async () => {
     let title, season, episode;
     ({title, season, episode} = await extractTitleSeasonEpisode("生万物 S02E08"));
