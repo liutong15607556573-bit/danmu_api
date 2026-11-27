@@ -72,3 +72,11 @@ jobs:
           }
           console.log('LIVE MULTI-EPISODE PROBE PASSED');
           NODE
+
+  container-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production Docker image without publishing
+        run: docker build --pull -t danmu-api:4k-validation .
