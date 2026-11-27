@@ -98,8 +98,8 @@ test('版本筛选严格隔离特殊版，不让普通版命中特殊版', () =>
       { episodeId: 'unknown', episodeTitle: '第3集' },
       { episodeId: 'standard', episodeTitle: '第3集 正片' },
     ], 'standard').map(ep => ep.episodeId),
-    ['standard'],
-    '普通正片必须有明确版本标记'
+    ['unknown', 'standard'],
+    '普通正片可兼容未标记候选，但排除明确标记的特殊版本'
   );
   assert.equal(detectExplicitEpisodeEdition('第3集'), null);
   assert.equal(detectExplicitEpisodeEdition('第3集 正片'), 'standard');
