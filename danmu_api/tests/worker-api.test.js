@@ -162,6 +162,42 @@ test('GET /api/v2/comment/:id?format=json&duration=true should use merged max du
   }
 });
 
+test('GET /api/v2/comment/:id?format=json&duration=true should resolve 4K source duration', async () => {
+  Globals.init({});
+  Globals.animes = [];
+  Globals.episodeIds = [];
+  Globals.episodeNum = 10001;
+  Globals.commentCache = new Map();
+
+  const originalFourKGetComments = FourKSource.prototype.getComments;
+  FourKSource.prototype.getComments = async function(url, platform, segmentFlag) {
+    if (segmentFlag) {
+      return {
+        type: '4k',
+        duration: 4321,
+        segmentList: [{ type: '4k', segment_start: 0, segment_end: 4321, url }]
+      };
+    }
+    return [{ p: '48.0,0,0,4k', m: '4K测试弹幕' }];
+  };
+
+  try {
+    const episode = addEpisode('https://www.4kvm.net/play/ch4s99p1u', '【4k】时长测试');
+    const req = new MockRequest(urlPrefix + '/api/v2/comment/' + episode.id + '?format=json&duration=true', { method: 'GET' });
+    const res = await handleRequest(req);
+    const body = await parseResponse(res);
+
+    assert.equal(res.status, 200);
+    assert.equal(body.videoDuration, 4321);
+    assert.equal(body.count, 1);
+    assert.equal(body.comments[0].m, '4K测试弹幕');
+  } finally {
+    FourKSource.prototype.getComments = originalFourKGetComments;
+    Globals.episodeIds = [];
+    Globals.commentCache = new Map();
+  }
+});
+
 test('GET /api/v2/comment/:id?format=json&duration=true should prefer explicit duration field', async () => {
   Globals.init({});
   Globals.animes = [];
