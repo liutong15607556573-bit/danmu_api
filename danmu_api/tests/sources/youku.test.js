@@ -12,6 +12,30 @@ import YoukuSource from '../../sources/youku.js';
 import { handleRequest } from '../../worker.js';
 import { MockRequest, parseResponse, token, urlPrefix, withMockFetch } from '../helpers/context.js';
 
+test('youku variety period titles keep the real period number without duplicating it', () => {
+  const source = new YoukuSource();
+  assert.equal(
+    source._formatEpisodeTitle(
+      { displayName: '第1期上 周深教孟子义唱歌', published: '2025-01-03 00:00:00' },
+      1,
+      'variety'
+    ),
+    '第1期上 2025-01-03 周深教孟子义唱歌'
+  );
+  assert.equal(
+    source._formatEpisodeTitle(
+      { displayName: '第十二期 嘉宾挑战', published: '2025-02-01 00:00:00' },
+      12,
+      'variety'
+    ),
+    '第12期 2025-02-01 嘉宾挑战'
+  );
+  assert.equal(
+    source._formatEpisodeTitle({ displayName: '未编号节目内容' }, 3, 'variety'),
+    '第3期 未编号节目内容'
+  );
+});
+
 test('youku source falls back to a locally generated cna', async (t) => {
   const youkuUrl = 'https://v.youku.com/v_show/id_XNjQ3ODMyNjU3Mg==.html';
 

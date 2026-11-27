@@ -51,6 +51,27 @@ test('PARSE TitleSeasonEpisode', async () => {
     ({title, season, episode} = await extractTitleSeasonEpisode("宇宙Marry Me? S02E08"));
     assert(title === "宇宙Marry Me?" && season == 2 && episode == 8, `Expected title === "宇宙Marry Me?" && season == 2 && episode == 8, but got ${title} ${season} ${episode}`);
   });
+test('综艺「第N期」文件名解析为节目名和期数，不误当作季度', async () => {
+  let parsed = await extractTitleSeasonEpisode('奔跑吧第1期上 周深教孟子义唱歌');
+  assert.equal(parsed.title, '奔跑吧');
+  assert.equal(parsed.season, 0);
+  assert.equal(parsed.episode, 1);
+
+  parsed = await extractTitleSeasonEpisode('奔跑吧第9季第12期下 嘉宾挑战');
+  assert.equal(parsed.title, '奔跑吧');
+  assert.equal(parsed.season, 9);
+  assert.equal(parsed.episode, 12);
+
+  parsed = await extractTitleSeasonEpisode('种地吧 第十二期');
+  assert.equal(parsed.title, '种地吧');
+  assert.equal(parsed.season, 0);
+  assert.equal(parsed.episode, 12);
+});
+test('综艺未标明季数时允许匹配平台返回的任意季标题', () => {
+  const anime = { animeTitle: '奔跑吧第9季(2025)【综艺】', source: 'tencent' };
+  assert.equal(matchSeason(anime, '奔跑吧', 0), true);
+  assert.equal(matchSeason({ ...anime, animeTitle: '王牌对王牌第9季(2025)【综艺】' }, '奔跑吧', 0), false);
+});
 test('season matching unifies traditional and simplified titles', () => {
   const queryTitle = '无职转生 ～到了异世界就拿出真本事～';
 
