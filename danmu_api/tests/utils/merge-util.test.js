@@ -9,7 +9,7 @@ import assert from 'node:assert';
 import { Envs } from '../../configs/envs.js';
 import { Globals } from '../../configs/globals.js';
 import { Season } from '../../models/dandan-model.js';
-import { findSecondaryMatches, applyMergeLogic, resolveDubVersionLinkIndex, mergeLinkEntry } from '../../utils/merge-util.js';
+import { findSecondaryMatches, applyMergeLogic, resolveDubVersionLinkIndex, mergeLinkEntry, areAnimeEditionsCompatible } from '../../utils/merge-util.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createTrace, runWithTrace, traceStep, useAsyncLocalStorage } from '../../utils/pipeline-trace.js';
 
@@ -899,6 +899,30 @@ test('merge applyMergeLogic 配音版本副源并入同配音版本链接', asyn
   assert.deepStrictEqual(merged.links.filter((link) => String(link.url).includes('$$$')).map((link) => link.title),
     Array.from({ length: 6 }, (_, i) => `【tencent&aiyifan】 第${i + 1}集 (粤语版)`), '粤语副源并入粤语链接，普通话链接保持独立');
 });
+test('merge 剪辑版本识别不误伤节目名称中的 Live 与 Special', () => {
+  const anime = (animeTitle, links = []) => ({ animeTitle, links });
+  assert.strictEqual(areAnimeEditionsCompatible(
+    anime('Natural High Live (2026)【电视剧】from tencent'),
+    anime('Natural High Live (2026)【电视剧】from aiyifan'),
+  ), true, 'Natural High Live 是节目名正文，不应自动判定为 Live 特别版本');
+  assert.strictEqual(areAnimeEditionsCompatible(
+    anime('Special Forces (2026)【电视剧】from tencent'),
+    anime('Special Forces (2026)【电视剧】from aiyifan'),
+  ), true, 'Special Forces 是节目名正文，不应自动判定为 Special 版本');
+  assert.strictEqual(areAnimeEditionsCompatible(
+    anime('Natural High (Live) (2026)【电视剧】from tencent'),
+    anime('Natural High (Live) (2026)【电视剧】from aiyifan'),
+  ), true, '两边节目标题都明确标记同一 Live 版本时允许合并');
+  assert.strictEqual(areAnimeEditionsCompatible(
+    anime('Natural High (Plus) (2026)【电视剧】from tencent'),
+    anime('Natural High (Pure) (2026)【电视剧】from aiyifan'),
+  ), false, '节目级明确标记不同版本时必须阻止合并');
+  assert.strictEqual(areAnimeEditionsCompatible(
+    anime('Natural High (Plus) (2026)【电视剧】from tencent', [{ title: '【tencent】 第1期 (Pure)' }]),
+    anime('Natural High (Plus) (2026)【电视剧】from aiyifan'),
+  ), false, '节目级标签与分集级标签冲突时必须阻止合并');
+});
+
 test('merge applyMergeLogic 不跨不同剪辑版本归并来源', async () => {
   Globals.init({ LOG_LEVEL: 'error', MERGE_SOURCE_PAIRS: 'tencent&aiyifan' });
   const buildAnime = (animeId, animeTitle, source, titles) => ({
