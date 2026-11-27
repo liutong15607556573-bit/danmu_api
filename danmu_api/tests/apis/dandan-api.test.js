@@ -66,6 +66,15 @@ test('版本标记支持空格和连字符分隔', async () => {
   }
 });
 
+test('中文综艺期数后紧跟全角括号时仍能识别版本', async () => {
+  const plus = await extractTitleSeasonEpisode('自然高光 第3期（加更版）2026 1080p');
+  assert.equal(plus.episode, 3);
+  assert.equal(plus.edition, 'plus');
+  const pure = await extractTitleSeasonEpisode('自然高光 第3期【纯享版】2026 1080p');
+  assert.equal(pure.episode, 3);
+  assert.equal(pure.edition, 'pure');
+});
+
 test('中文综艺第N期文件名也能识别期数后的版本标记', async () => {
   const parsed = await extractTitleSeasonEpisode('自然高光 第3期上 加更版 2026 1080p');
   assert.equal(parsed.episode, 3);
