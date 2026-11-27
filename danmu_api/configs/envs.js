@@ -233,8 +233,8 @@ export class Envs {
       .map(s => s.trim())
       .filter(s => this.ALLOWED_SOURCES.includes(s));
 
-    // 记账只保留用户配置中实际有效的源；非法配置回退默认值时不污染原始配置快照。
-    this.accessedEnvVars.set('SOURCE_ORDER', orderArr);
+    // 保留用户显式配置的有效项；默认回退项不写入用户配置快照。
+    const configuredOrderArr = [...orderArr];
 
     if (orderArr.length === 0) {
       orderArr = ['iqiyi', 'tencent', 'youku', 'douban', '360', 'renren', 'hanjutv', 'acfun', 'tmdb', '4k', 'aiyifan'];
@@ -249,6 +249,7 @@ export class Envs {
       orderArr.splice(refreshedAiyifanIndex, 0, '4k');
     }
 
+    this.accessedEnvVars.set('SOURCE_ORDER', configuredOrderArr);
     return orderArr;
   }
 
