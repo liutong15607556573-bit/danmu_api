@@ -13,7 +13,7 @@ import {
   extractSeasonNumberFromAnimeTitle, extractYear, convertChineseNumber, parseFileName,
   createDynamicPlatformOrder, sanitizeSearchKeyword, stripNonTitleChars, strictTitleMatch,
   getExplicitSeasonNumber, titleMatches, extractEpisodeNumberFromTitle, extractAnimeInfo,
-  extractEpisodeTitle, extractAnimeTitle, printFirst200Chars, normalizeTitleForMatch, titleDecisionMeta,
+  extractEpisodeTitle, extractAnimeTitle, printFirst200Chars, normalizeTitleForMatch, titleDecisionMeta, stripVarietyEpisodeMarker,
 } from '../../utils/common-util.js';
 
 test('season extraction recognizes season markers', () => {
@@ -120,6 +120,12 @@ test('common-util extractEpisodeNumberFromTitle 覆盖 第N集/EPN/纯数字', (
   assert.strictEqual(extractEpisodeNumberFromTitle('第2季'), null, '季号不算集号');
   assert.strictEqual(extractEpisodeNumberFromTitle('无集号信息'), null);
   assert.strictEqual(extractEpisodeNumberFromTitle(''), null);
+});
+
+test('common-util stripVarietyEpisodeMarker 去除期数和 SxxEyy 后缀', () => {
+  assert.equal(stripVarietyEpisodeMarker('奔跑吧 第1期上 周深教孟子义唱歌'), '奔跑吧');
+  assert.equal(stripVarietyEpisodeMarker('奔跑吧 S09E01'), '奔跑吧');
+  assert.equal(stripVarietyEpisodeMarker('奔跑吧'), '奔跑吧');
 });
 
 test('common-util extractAnimeTitle/extractEpisodeTitle/extractAnimeInfo 组合解析', () => {
