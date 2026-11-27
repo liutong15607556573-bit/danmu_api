@@ -1455,7 +1455,7 @@ function groupEpisodeAlternatives(episodes, movie = false, numberFor = null) {
   if (!movie && ordered.some(group => group.number === null)) ordered = alignEpisodeGroupOrder(ordered, entries);
   if (ordered.some(group => group.part)) {
     const issues = ordered.filter(group => group.issue).sort((left, right) =>
-      left.number - right.number || ' 上中下'.indexOf(left.part || ' ') - ' 上中下'.indexOf(right.part || ' '));
+      left.number - right.number || ({ 上: 0, 中: 1, 下: 2, 加更: 3 }[left.part] ?? 4) - ({ 上: 0, 中: 1, 下: 2, 加更: 3 }[right.part] ?? 4));
     let nextIssue = 0;
     ordered = ordered.map(group => group.issue ? issues[nextIssue++] : group);
     for (const group of issues) group.explicit = false;
@@ -2443,7 +2443,7 @@ export async function extractTitleSeasonEpisode(cleanFileName) {
   const match = cleanFileName.match(regex);
   // 中文综艺文件名常用「节目名 第N期上/下」表示期数，不是「第N季」。
   // 先识别期数，避免把期数留在剧名里导致搜索不到节目，也避免误触发跨季匹配。
-  const varietyPeriodMatch = cleanFileName.match(/^(.*?)[.\s_-]*第\s*([0-9一二三四五六七八九十百千万]+)\s*期(?:上|下|中)?(?:[.\s_-（【(].*)?$/i);
+  const varietyPeriodMatch = cleanFileName.match(/^(.*?)[.\s_-]*第\s*([0-9一二三四五六七八九十百千万]+)\s*期(?:上|下|中|加更)?(?:[.\s_-：:、（【(].*)?$/i);
 
   let title, season, episode, year;
 
