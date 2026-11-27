@@ -6,7 +6,7 @@ dotenv.config();
 
 import test from 'node:test';
 import assert from 'node:assert';
-import { extractTitleSeasonEpisode, buildSearchAnimeUrl, matchSeason, matchAniAndEp, fallbackMatchAniAndEp, filterSameEpisodeTitle, buildBangumiData, resolveEpisodeCount, applyEpisodeTitleFilter, filterEpisodesByTitle, withAvailableEpisodeCount, buildMatchScoring, resolveSegmentCommentCacheKey } from '../../apis/dandan-api.js';
+import { extractTitleSeasonEpisode, buildSearchAnimeUrl, matchSeason, matchAniAndEp, fallbackMatchAniAndEp, filterSameEpisodeTitle, buildBangumiData, resolveEpisodeCount, applyEpisodeTitleFilter, filterEpisodesByTitle, filterEpisodesByEdition, classifyEpisodeEdition, detectExplicitEpisodeEdition, detectAnimeTitleEdition, withAvailableEpisodeCount, buildMatchScoring, resolveSegmentCommentCacheKey } from '../../apis/dandan-api.js';
 import { getSearchCache, setSearchCache } from '../../utils/cache-util.js';
 import { addFavorite, removeFavorite, saveFavorites } from '../../utils/favorite-util.js';
 import { Globals, globals } from '../../configs/globals.js';
@@ -31,6 +31,111 @@ test('buildSearchAnimeUrl should derive /search/anime from /search/episodes requ
     assert.equal(searchUrl.searchParams.has('episode'), false);
   });
   // 测试标题解析
+test('文件名版本标记识别 Pure/Plus/Special/Live，忽略清晰度编码', async () => {
+  const cases = [
+    ['Natural.High.S04E03.2026.1080p.TX.WEB-DL.H265.AAC', 'standard'],
+    ['Natural.High.S04E03.Pure.2026.2160p.WEB-DL.H265', 'pure'],
+    ['Natural.High.S04E03.Plus.2026.1080p.WEB-DL.H265', 'plus'],
+    ['Natural.High.S04E03.Special.2026.1080p.WEB-DL.H265', 'special'],
+    ['Natural.High.S04E03.Live.2026.1080p.WEB-DL.H265', 'live'],
+    ['Natural.High.S04E03.2026.1080p.WEB-DL.H265.AAC-LiveGroup', 'standard'],
+    ['Natural.High.S04E03.2026.1080p.WEB-DL.H265.SP-ReleaseGroup', 'standard'],
+    ['Natural.High.S04E03.2026.WEBRip.HDR10.LiveGroup', 'standard'],
+    ['Natural.High.S04E03.2026.BluRay.x265.SP-ReleaseGroup', 'standard'],
+    ['Natural.High.S04E03.Special.2026.1080p.WEB-DL.H265.ReleaseGroup', 'special'],
+  ];
+  for (const [filename, edition] of cases) {
+    const parsed = await extractTitleSeasonEpisode(filename);
+    assert.equal(parsed.edition, edition, filename);
+    assert.equal(parsed.title, 'Natural High');
+    assert.equal(parsed.season, 4);
+    assert.equal(parsed.episode, 3);
+  }
+});
+
+test('版本标记支持空格和连字符分隔', async () => {
+  const cases = [
+    ['Natural High S04E03 Pure 2026 1080p', 'pure'],
+    ['Natural High S04E03-Plus-2026-1080p', 'plus'],
+    ['Natural High S04E03 Special 2026 1080p', 'special'],
+    ['Natural High S04E03 Live 2026 1080p', 'live'],
+  ];
+  for (const [filename, edition] of cases) {
+    const parsed = await extractTitleSeasonEpisode(filename);
+    assert.equal(parsed.edition, edition, filename);
+  }
+});
+
+test('中文综艺期数后紧跟全角括号时仍能识别版本', async () => {
+  const plus = await extractTitleSeasonEpisode('自然高光 第3期（加更版）2026 1080p');
+  assert.equal(plus.episode, 3);
+  assert.equal(plus.edition, 'plus');
+  const pure = await extractTitleSeasonEpisode('自然高光 第3期【纯享版】2026 1080p');
+  assert.equal(pure.episode, 3);
+  assert.equal(pure.edition, 'pure');
+});
+
+test('中文综艺第N期文件名也能识别期数后的版本标记', async () => {
+  const parsed = await extractTitleSeasonEpisode('自然高光 第3期上 加更版 2026 1080p');
+  assert.equal(parsed.episode, 3);
+  assert.equal(parsed.edition, 'plus');
+});
+
+test('版本筛选严格隔离特殊版，不让普通版命中特殊版', () => {
+  const episodes = [
+    { episodeId: 'standard', episodeTitle: '第3集 正片' },
+    { episodeId: 'pure', episodeTitle: '第3集 Pure 纯享版' },
+    { episodeId: 'plus', episodeTitle: '第3集 Plus 加更版' },
+    { episodeId: 'special', episodeTitle: '第3集 Special 特辑' },
+    { episodeId: 'live', episodeTitle: '第3集 Live 直播回放' },
+  ];
+  for (const edition of ['standard', 'pure', 'plus', 'special', 'live']) {
+    assert.deepEqual(filterEpisodesByEdition(episodes, edition).map(ep => ep.episodeId), [edition]);
+  }
+  assert.deepEqual(
+    filterEpisodesByEdition([{ episodeId: 'series-plus', episodeTitle: '第3集' }], 'plus', 'Natural High (Plus)').map(ep => ep.episodeId),
+    ['series-plus'],
+    '分集标题没有版本词时，可使用节目条目标题中的版本标记'
+  );
+  assert.deepEqual(
+    filterEpisodesByEdition([{ episodeId: 'unknown', episodeTitle: '第3集' }], 'standard').map(ep => ep.episodeId),
+    ['unknown'],
+    '未标记候选兼容普通正片，避免常规剧集全部失去匹配'
+  );
+  assert.deepEqual(
+    filterEpisodesByEdition([{ episodeId: 'unknown', episodeTitle: '第3集' }], 'plus'),
+    [],
+    '特殊版本没有明确版本证据时必须拒绝匹配'
+  );
+  assert.deepEqual(
+    filterEpisodesByEdition([
+      { episodeId: 'unknown', episodeTitle: '第3集' },
+      { episodeId: 'standard', episodeTitle: '第3集 正片' },
+    ], 'standard').map(ep => ep.episodeId),
+    ['unknown', 'standard'],
+    '普通正片可兼容未标记候选，但排除明确标记的特殊版本'
+  );
+  assert.equal(detectExplicitEpisodeEdition('第3集'), null);
+  assert.equal(detectExplicitEpisodeEdition('第3集 正片'), 'standard');
+  assert.equal(detectExplicitEpisodeEdition('Special Investigation 第3集'), null, '集标题正文出现 Special 不应误判版本');
+  assert.equal(detectExplicitEpisodeEdition('Natural High Live Concert 第3集'), null, '节目正文出现 Live 不应误判版本');
+  assert.equal(detectAnimeTitleEdition('Live With Kelly'), null, '节目正式名称包含 Live 不应误判');
+  assert.equal(detectAnimeTitleEdition('Special Forces'), null, '节目正式名称包含 Special 不应误判');
+  assert.equal(detectAnimeTitleEdition('Natural High Live'), null, '节目名称末尾普通 Live 单词不应误判');
+  assert.equal(detectAnimeTitleEdition('Natural High (Live)'), 'live', '节目标题括号中的 Live 标签应识别');
+  assert.equal(detectAnimeTitleEdition('Natural High - (Plus)'), 'plus', '节目标题括号中的 Plus 标签应识别');
+  assert.deepEqual(
+    filterEpisodesByEdition([{ episodeId: 'series-live', episodeTitle: '第3集' }], 'live', 'Natural High Live'),
+    [],
+    '节目正式名称以 Live 结尾时不能当作 Live 版本标签'
+  );
+  assert.deepEqual(
+    filterEpisodesByEdition([{ episodeId: 'series-live-tag', episodeTitle: '第3集' }], 'live', 'Natural High (Live)'),
+    [{ episodeId: 'series-live-tag', episodeTitle: '第3集' }],
+    '节目标题括号中的明确 Live 标签可以作为版本证据'
+  );
+});
+
 test('PARSE TitleSeasonEpisode', async () => {
     let title, season, episode;
     ({title, season, episode} = await extractTitleSeasonEpisode("生万物 S02E08"));
