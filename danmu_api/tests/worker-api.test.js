@@ -22,6 +22,7 @@ import BilibiliSource from '../sources/bilibili.js';
 import IqiyiSource from '../sources/iqiyi.js';
 import TencentSource from '../sources/tencent.js';
 import YoukuSource from '../sources/youku.js';
+import FourKSource from '../sources/4k.js';
 import { addAnime, addEpisode, setSearchCache } from '../utils/cache-util.js';
 import { createSearchResult, resetSearchState } from './helpers/context.js';
 import { createFavoriteAnime, favoriteSearchResult } from './helpers/favorites.js';
@@ -1247,6 +1248,56 @@ test('worker IP 黑名单：精确与正则规则命中即 403，未命中放行
 
   const cidrHit = await callWorker('http://localhost/api/config', { env: { IP_BLACKLIST: '192.168.0.0/16' }, ip: '192.168.5.5' });
   assert.strictEqual(cidrHit.status, 403, '支持 CIDR 规则');
+});
+
+test('4K影视播放链接可路由整集弹幕、分片列表和分片弹幕', async () => {
+  Globals.init({});
+  Globals.commentCache = new Map();
+  const originalGetComments = FourKSource.prototype.getComments;
+  const originalGetSegmentComments = FourKSource.prototype.getSegmentComments;
+  const calls = [];
+  const playUrl = 'https://www.4kvm.net/play/ch4s99p1u';
+
+  FourKSource.prototype.getComments = async function(url, platform, segmentFlag) {
+    calls.push({ kind: segmentFlag ? 'segments' : 'full', url, platform });
+    if (segmentFlag) {
+      return {
+        type: '4k',
+        duration: 48,
+        segmentList: [{ type: '4k', segment_start: 0, segment_end: 48, url }]
+      };
+    }
+    return [{ p: '12,1,16777215,4k', m: '4K测试弹幕' }];
+  };
+  FourKSource.prototype.getSegmentComments = async function(segment) {
+    calls.push({ kind: 'segment', url: segment.url, platform: segment.type });
+    return [{ p: '12,1,16777215,4k', m: '4K分片弹幕' }];
+  };
+
+  try {
+    const full = await callWorker(`http://localhost/api/v2/comment?url=${encodeURIComponent(playUrl)}&format=json`);
+    assert.strictEqual(full.status, 200);
+    assert.strictEqual(full.json.count, 1);
+    assert.strictEqual(calls[0].platform, '4k');
+
+    const segments = await callWorker(`http://localhost/api/v2/comment?url=${encodeURIComponent(playUrl)}&format=json&segmentflag=true`);
+    assert.strictEqual(segments.status, 200);
+    assert.strictEqual(segments.json.type, '4k');
+    assert.strictEqual(segments.json.segmentList[0].type, '4k');
+
+    const segment = await callWorker('http://localhost/api/v2/segmentcomment?format=json', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: '4k', segment_start: 0, segment_end: 48, url: playUrl }),
+    });
+    assert.strictEqual(segment.status, 200);
+    assert.strictEqual(segment.json.count, 1);
+    assert.ok(calls.some(call => call.kind === 'segment' && call.platform === '4k'));
+  } finally {
+    FourKSource.prototype.getComments = originalGetComments;
+    FourKSource.prototype.getSegmentComments = originalGetSegmentComments;
+    Globals.init({});
+  }
 });
 
 test('worker 限流：窗口内已达上限返回 429 且不再记录新请求', async () => {
