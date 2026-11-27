@@ -88,6 +88,8 @@ test('alignSourceTimelines uses separate offsets before and after an edit point'
     { m: '片段二锚点乙', t: 220 },
     { m: '片段二锚点丙', t: 300 },
     { m: '片段二锚点丁', t: 360 },
+    { m: '参照源独有弹幕甲', t: 400 },
+    { m: '参照源独有弹幕乙', t: 430 },
   ];
   const edited = [
     { m: '片段一锚点甲', t: 40 },
