@@ -112,6 +112,8 @@ test('common-util extractEpisodeNumberFromTitle 覆盖 第N集/EPN/纯数字', (
   assert.strictEqual(extractEpisodeNumberFromTitle('【qq】 第1集'), 1);
   assert.strictEqual(extractEpisodeNumberFromTitle('第01话'), 1);
   assert.strictEqual(extractEpisodeNumberFromTitle('第12回'), 12);
+  assert.strictEqual(extractEpisodeNumberFromTitle('第12期'), 12, '综艺期数也按分集序号解析');
+  assert.strictEqual(extractEpisodeNumberFromTitle('第03期上'), 3, '综艺上下期保留期数');
   assert.strictEqual(extractEpisodeNumberFromTitle('EP05'), 5);
   assert.strictEqual(extractEpisodeNumberFromTitle('S01E07'), 7);
   assert.strictEqual(extractEpisodeNumberFromTitle(' 3 '), 3, '首尾空白的裸数字按集号');
