@@ -2313,7 +2313,7 @@ export async function fallbackMatchAniAndEp(searchData, req, season, episode, ye
     log("info", "[system] [match]", bangumiData);
     if (hasSeasonEpisode(season, episode)) {
       // 过滤集标题正则条件的 episode
-      const filteredTmpEpisodes = filterEpisodesByEdition(filterEpisodesByTitle(bangumiData.bangumi.episodes), edition);
+      const filteredTmpEpisodes = filterEpisodesByEdition(filterEpisodesByTitle(bangumiData.bangumi.episodes), edition, anime.animeTitle);
 
       // 过滤集标题一致的 episode，且保留首次出现的集标题的 episode
       const options = { ordinalOnly: Boolean(preference), includePeriod: season === 0, groups: searchData.seasonGroups?.get(anime) };
