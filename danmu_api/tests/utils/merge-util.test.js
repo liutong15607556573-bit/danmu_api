@@ -899,6 +899,62 @@ test('merge applyMergeLogic 配音版本副源并入同配音版本链接', asyn
   assert.deepStrictEqual(merged.links.filter((link) => String(link.url).includes('$$$')).map((link) => link.title),
     Array.from({ length: 6 }, (_, i) => `【tencent&aiyifan】 第${i + 1}集 (粤语版)`), '粤语副源并入粤语链接，普通话链接保持独立');
 });
+test('merge applyMergeLogic 不跨不同剪辑版本归并来源', async () => {
+  Globals.init({ LOG_LEVEL: 'error', MERGE_SOURCE_PAIRS: 'tencent&aiyifan' });
+  const buildAnime = (animeId, animeTitle, source, titles) => ({
+    animeId,
+    bangumiId: String(animeId),
+    animeTitle,
+    aliases: [],
+    source,
+    type: '电视剧',
+    typeDescription: '电视剧',
+    startDate: '2026-01-01T00:00:00.000Z',
+    links: titles.map((title, i) => ({ title: \`【\${source}】 \${title}\`, url: \`\${source}:\${animeId}:\${i}\` })),
+    episodeCount: titles.length,
+  });
+
+  try {
+    const primary = buildAnime(701, '剪辑版本隔离回归(2026)【电视剧】from tencent', 'tencent',
+      ['第1集 (Plus)', '第2集 (Plus)', '第3集 (Plus)']);
+    const secondary = buildAnime(702, '剪辑版本隔离回归(2026)【电视剧】from aiyifan', 'aiyifan',
+      ['第1集 (Pure)', '第2集 (Pure)', '第3集 (Pure)']);
+    Globals.animes = [primary, secondary];
+    await applyMergeLogic([primary, secondary]);
+    assert.strictEqual(
+      Globals.animes.some(anime => String(anime.animeTitle).includes('from tencent&aiyifan')),
+      false,
+      'Plus 与 Pure 的分集标题证据不能被合并为同一聚合链接',
+    );
+
+    const plusPrimary = buildAnime(711, '剪辑版本节目级隔离(Plus)(2026)【电视剧】from tencent', 'tencent',
+      ['第1集', '第2集', '第3集']);
+    const plusSecondary = buildAnime(712, '剪辑版本节目级隔离(Plus)(2026)【电视剧】from aiyifan', 'aiyifan',
+      ['第1集', '第2集', '第3集']);
+    Globals.animes = [plusPrimary, plusSecondary];
+    await applyMergeLogic([plusPrimary, plusSecondary]);
+    assert.strictEqual(
+      Globals.animes.some(anime => String(anime.animeTitle).includes('from tencent&aiyifan')),
+      true,
+      '两侧节目级明确标记为同一 Plus 版本时仍允许正常合并',
+    );
+
+    const unknownPrimary = buildAnime(721, '剪辑版本未知回归(2026)【电视剧】from tencent', 'tencent',
+      ['第1集', '第2集', '第3集']);
+    const plusUnknown = buildAnime(722, '剪辑版本未知回归(Plus)(2026)【电视剧】from aiyifan', 'aiyifan',
+      ['第1集', '第2集', '第3集']);
+    Globals.animes = [unknownPrimary, plusUnknown];
+    await applyMergeLogic([unknownPrimary, plusUnknown]);
+    assert.strictEqual(
+      Globals.animes.some(anime => String(anime.animeTitle).includes('from tencent&aiyifan')),
+      false,
+      '一侧版本未知、另一侧明确 Plus 时必须保守阻止归并',
+    );
+  } finally {
+    Globals.init({ LOG_LEVEL: 'error' });
+  }
+});
+
 test('merge applyMergeLogic 映射表特权通道不受年份判定约束', async () => {
   const rule = '倚天屠龙记(2009)【电视剧】@aiyifan -> 倚天屠龙记(2001)【电视剧】@tencent';
   const buildAnime = (animeId, animeTitle, source, count) => ({
