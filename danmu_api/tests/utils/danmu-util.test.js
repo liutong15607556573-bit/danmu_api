@@ -265,3 +265,14 @@ test('convertToDanmakuJson 大量 XML 弹幕保留时间与顺序', () => {
   assert.strictEqual(out[count - 1].p, '2499.90,1,16777215,[test]');
   assert.strictEqual(out[count - 1].m, '顺序检查24999');
 });
+
+
+test('convertToDanmakuJson preserves black (zero) color for 4K danmaku', () => {
+  Globals.init({ GROUP_MINUTE: '0', DANMU_LIMIT: '0', CONVERT_COLOR: 'default', BLOCKED_WORDS: '' });
+  const out = convertToDanmakuJson([
+    { timepoint: 48, ct: 0, color: 0, content: '黑色弹幕' }
+  ], '4k');
+  assert.strictEqual(out.length, 1);
+  assert.strictEqual(out[0].p, '48.00,0,0,[4k]');
+  assert.strictEqual(out[0].m, '黑色弹幕');
+});
