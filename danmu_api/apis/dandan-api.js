@@ -306,7 +306,8 @@ export function classifyEpisodeEdition(value) {
     ['plus', /(?:^|[.\s_-])(?:plus|extra)(?=$|[.\s_-])|加更版|加更/i],
     ['special', /(?:^|[.\s_-])(?:special|sp)(?=$|[.\s_-])|特辑|特别篇/i],
     ['live', /(?:^|[.\s_-])(?:live|concert)(?=$|[.\s_-])|直播回放|直播/i],
-  ];  for (const [edition, pattern] of patterns) if (pattern.test(text)) return edition;
+  ];
+  for (const [edition, pattern] of patterns) if (pattern.test(text)) return edition;
   return 'standard';
 }
 
