@@ -38,6 +38,9 @@ test('文件名版本标记识别 Pure/Plus/Special/Live，忽略清晰度编码
     ['Natural.High.S04E03.Plus.2026.1080p.WEB-DL.H265', 'plus'],
     ['Natural.High.S04E03.Special.2026.1080p.WEB-DL.H265', 'special'],
     ['Natural.High.S04E03.Live.2026.1080p.WEB-DL.H265', 'live'],
+    ['Natural.High.S04E03.2026.1080p.WEB-DL.H265.AAC-LiveGroup', 'standard'],
+    ['Natural.High.S04E03.2026.1080p.WEB-DL.H265.SP-ReleaseGroup', 'standard'],
+    ['Natural.High.S04E03.Special.2026.1080p.WEB-DL.H265.ReleaseGroup', 'special'],
   ];
   for (const [filename, edition] of cases) {
     const parsed = await extractTitleSeasonEpisode(filename);
