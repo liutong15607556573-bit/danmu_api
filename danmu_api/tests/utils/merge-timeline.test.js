@@ -78,3 +78,47 @@ test('alignSourceTimelines skips calibration when unique text anchors disagree o
 
   assert.deepEqual(shifted, before);
 });
+
+
+test('alignSourceTimelines uses separate offsets before and after an edit point', () => {
+  const reference = [
+    { m: '片段一锚点甲', t: 10 },
+    { m: '片段一锚点乙', t: 80 },
+    { m: '片段二锚点甲', t: 160 },
+    { m: '片段二锚点乙', t: 220 },
+    { m: '片段二锚点丙', t: 300 },
+    { m: '片段二锚点丁', t: 360 },
+  ];
+  const edited = [
+    { m: '片段一锚点甲', t: 40 },
+    { m: '片段一锚点乙', t: 110 },
+    { m: '片段二锚点甲', t: 220 },
+    { m: '片段二锚点乙', t: 280 },
+    { m: '片段二锚点丙', t: 360 },
+    { m: '片段二锚点丁', t: 420 },
+    { m: '剪辑点前弹幕', t: 150 },
+    { m: '剪辑点后弹幕', t: 240 },
+  ];
+
+  alignSourceTimelines([reference, edited], ['iqiyi', 'youku'], ['a', 'b']);
+
+  assert.deepEqual(edited.map(item => item.t), [10, 80, 160, 220, 300, 360, 120, 180]);
+});
+
+test('alignSourceTimelines refuses to calibrate when matching anchors reverse their order', () => {
+  const reference = [
+    { m: '顺序锚点甲', t: 10 },
+    { m: '顺序锚点乙', t: 80 },
+    { m: '顺序锚点丙', t: 160 },
+  ];
+  const reordered = [
+    { m: '顺序锚点甲', t: 40 },
+    { m: '顺序锚点乙', t: 180 },
+    { m: '顺序锚点丙', t: 100 },
+  ];
+  const before = structuredClone(reordered);
+
+  alignSourceTimelines([reference, reordered], ['iqiyi', 'youku'], ['a', 'b']);
+
+  assert.deepEqual(reordered, before);
+});
