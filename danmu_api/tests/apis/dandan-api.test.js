@@ -411,6 +411,18 @@ test('applyEpisodeTitleFilter 过滤剧集并把可用集数写回动漫', () =>
   assert.equal(anime.episodeCount, 10, '动漫的集数写回为过滤后的可用集数');
 });
 
+test('filterEpisodesByTitle 同时检查 episodeTitle 与 title，防止先导片伪装成正片集号', () => {
+  Globals.init({ ENABLE_ANIME_EPISODE_FILTER: 'true', GROUP_MINUTE: '0', DANMU_LIMIT: '0', CONVERT_COLOR: 'default', BLOCKED_WORDS: '' });
+  const episodes = [
+    { episodeTitle: '第1期上：正片', title: '先导片上：正片预告' },
+    { episodeTitle: '', title: '先导片下：先导内容' },
+    { episodeTitle: '第1期下：正片', title: '第1期下：正片' },
+  ];
+
+  const filtered = filterEpisodesByTitle(episodes);
+  assert.deepStrictEqual(filtered.map(ep => ep.episodeTitle), ['第1期下：正片']);
+});
+
 test('filterEpisodesByTitle 按集标题过滤剧集', () => {
   Globals.init({ ENABLE_ANIME_EPISODE_FILTER: 'true', GROUP_MINUTE: '0', DANMU_LIMIT: '0', CONVERT_COLOR: 'default', BLOCKED_WORDS: '' });
   const episodes = [{ episodeTitle: '第1期上：正片' }, { episodeTitle: '第1期加更：加更' }, { episodeTitle: '先导片上：先导' }];
