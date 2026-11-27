@@ -164,7 +164,7 @@ test('alignSourceTimelines does not extrapolate a constant offset beyond anchor 
 
   // The longer shifted list is selected as the reference; align only sourceA's
   // unique-anchor coverage and do not extrapolate its third, out-of-range comment.
-  assert.deepEqual(sourceA.map(item => item.t), [40, 110, 120]);
+  assert.deepEqual(reference.map(item => item.t), [40, 110, 120]);
   assert.deepEqual(shifted.map(item => item.t), [40, 110, 100, 5, 150]);
 });
 
