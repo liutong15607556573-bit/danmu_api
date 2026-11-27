@@ -490,6 +490,8 @@ export function extractEpisodePartFromTitle(episodeTitle) {
   const text = stripEpisodePlatform(String(episodeTitle));
   const issue = /第\s*[0-9一二三四五六七八九十百千万]+\s*期\s*(上|中|下|加更)/.exec(text);
   if (issue) return issue[1];
+  const parentheticalPart = /[（(]\s*(上|中|下)\s*[）)]\s*$/.exec(text);
+  if (parentheticalPart) return parentheticalPart[1];
   const extra = /(?:^|[\s：:、，,（(])加更(?:期|篇|版)?(?:$|[\s）)]|$)/.exec(text);
   return extra ? '加更' : null;
 }
