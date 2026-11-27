@@ -558,7 +558,7 @@ export default class IqiyiSource extends BaseSource {
   _selectSeasonGroup(groups, querySeason) {
     const inlineGroups = groups.filter(group => group.videos && typeof group.videos === 'object');
     if (querySeason === null) return inlineGroups[0] || null;
-    const seasonOf = (group) => (group.tab_name ? getExplicitSeasonNumber(group.tab_name) : null);
+    const seasonOf = (group) => (group.tab_name ? getExplicitSeasonNumber(group.tab_name, false) : null);
     return inlineGroups.find(group => seasonOf(group) === querySeason)
       || groups.find(group => seasonOf(group) === querySeason)
       || inlineGroups[0]
@@ -779,7 +779,7 @@ export default class IqiyiSource extends BaseSource {
     let filteredAnimes = sourceAnimes.filter(s => titleMatches(s.title, queryTitle, querySeason));
 
     // 提取搜索词中的明确季度信息或使用传入的季度参数
-    const resolvedQuerySeason = querySeason !== null ? querySeason : getExplicitSeasonNumber(queryTitle);
+    const resolvedQuerySeason = querySeason !== null ? querySeason : getExplicitSeasonNumber(queryTitle, false);
 
     // 初始列表预过滤机制：若用户指定了季度，优先检查初始结果中是否已包含匹配项
     if (resolvedQuerySeason !== null) {
@@ -788,7 +788,7 @@ export default class IqiyiSource extends BaseSource {
         const { season } = extractSeasonNumberFromAnimeTitle(anime.title);
         if (season === resolvedQuerySeason || (resolvedQuerySeason === 1 && season === null)) return true;
         return firstSeasonTitle && normalizeTitleForMatch(anime.title).toLowerCase() === firstSeasonTitle
-          && getExplicitSeasonNumber(anime.title) === null;
+          && getExplicitSeasonNumber(anime.title, false) === null;
       });
 
       // 如果已命中目标，减少详情请求量
