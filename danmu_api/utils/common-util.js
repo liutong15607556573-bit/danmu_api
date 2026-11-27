@@ -485,6 +485,15 @@ export function extractSeasonNumberFromAnimeTitle(animeTitle) {
 }
 
 // 从集标题中提取集数（支持多种格式：第1集、第01集、EP01、E01等）
+export function extractEpisodePartFromTitle(episodeTitle) {
+  if (!episodeTitle) return null;
+  const text = stripEpisodePlatform(String(episodeTitle));
+  const issue = /第\\s*[0-9一二三四五六七八九十百千万]+\\s*期\\s*(上|中|下|加更)/.exec(text);
+  if (issue) return issue[1];
+  const extra = /(?:^|[\\s：:、，,（(])加更(?:期|篇|版)?(?:$|[\\s）)]|$)/.exec(text);
+  return extra ? '加更' : null;
+}
+
 export function extractEpisodeNumberFromTitle(episodeTitle, ordinalOnly = false, includePeriod = false) {
   if (!episodeTitle) return null;
   if (ordinalOnly) episodeTitle = episodeTitle.replace(/(?<!\d)(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])(?!\d)/g, ' ');
