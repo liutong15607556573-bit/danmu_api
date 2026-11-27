@@ -36,6 +36,10 @@ jobs:
             if (apiRoot.hostname !== '4k.dmservce.org') throw new Error('Unexpected API host ' + apiRoot.hostname);
             return { apiRoot: apiRoot.toString().replace(/\/$/, ''), videoId: video[1], episode: manager[1] };
           };
+          const searchHtml = await getText('https://www.4kvm.net/search?q=%E8%B0%B7%E9%9B%A8');
+          const searchMatches = [...searchHtml.matchAll(/<a\\b[^>]*href=["']\\/play\\/([A-Za-z0-9]+)["'][^>]*data-vod=["'][^"']*["'][^>]*>[\\s\\S]*?(?=<a\\b[^>]*href=["']\\/play\\/|$)/gi)];
+          console.log('Live search result cards accepted by adapter parser:', searchMatches.length);
+          if (searchMatches.length === 0) throw new Error('Live search page returned no cards matching current adapter parser');
           const firstHtml = await getText(process.env.PLAY_URL);
           console.log('Playback page:', (firstHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '').replace(/\s+/g,' ').slice(0,100));
           const links = [];
