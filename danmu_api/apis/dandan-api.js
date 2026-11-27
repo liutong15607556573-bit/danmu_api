@@ -2217,7 +2217,7 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
         log("info", "[system] [match] 过滤后的集标题", filteredEpisodes.map(episode => episode.episodeTitle));
 
         let targetEpisode = episode;
-        if (offsets && offsets[String(season)] !== undefined) {
+        if (!isVarietyPeriod && offsets && offsets[String(season)] !== undefined) {
           targetEpisode = computeTargetEpisode(offsets, season, episode, filteredEpisodes, targetEpisode);
         }
 
@@ -2361,7 +2361,7 @@ export async function fallbackMatchAniAndEp(searchData, req, season, episode, ye
       log("info", "[system] [LogVar-API] 过滤后的集标题", filteredEpisodes.map(episode => episode.episodeTitle));
 
       let targetEpisode = episode;
-      if (offsets && offsets[String(season)] !== undefined) {
+      if (!isVarietyPeriod && offsets && offsets[String(season)] !== undefined) {
         targetEpisode = computeTargetEpisode(offsets, season, episode, filteredEpisodes, targetEpisode);
       }
 
