@@ -6,7 +6,7 @@ dotenv.config();
 
 import test from 'node:test';
 import assert from 'node:assert';
-import { extractTitleSeasonEpisode, buildSearchAnimeUrl, matchSeason, matchAniAndEp, fallbackMatchAniAndEp, filterSameEpisodeTitle, buildBangumiData, resolveEpisodeCount, applyEpisodeTitleFilter, filterEpisodesByTitle, filterEpisodesByEdition, classifyEpisodeEdition, withAvailableEpisodeCount, buildMatchScoring, resolveSegmentCommentCacheKey } from '../../apis/dandan-api.js';
+import { extractTitleSeasonEpisode, buildSearchAnimeUrl, matchSeason, matchAniAndEp, fallbackMatchAniAndEp, filterSameEpisodeTitle, buildBangumiData, resolveEpisodeCount, applyEpisodeTitleFilter, filterEpisodesByTitle, filterEpisodesByEdition, classifyEpisodeEdition, detectExplicitEpisodeEdition, withAvailableEpisodeCount, buildMatchScoring, resolveSegmentCommentCacheKey } from '../../apis/dandan-api.js';
 import { getSearchCache, setSearchCache } from '../../utils/cache-util.js';
 import { addFavorite, removeFavorite, saveFavorites } from '../../utils/favorite-util.js';
 import { Globals, globals } from '../../configs/globals.js';
@@ -83,6 +83,21 @@ test('版本筛选严格隔离特殊版，不让普通版命中特殊版', () =>
     ['series-plus'],
     '分集标题没有版本词时，可使用节目条目标题中的版本标记'
   );
+  assert.deepEqual(
+    filterEpisodesByEdition([{ episodeId: 'unknown', episodeTitle: '第3集' }], 'standard'),
+    [],
+    '分集标题和节目标题均无版本信息时，不得猜测为正片'
+  );
+  assert.deepEqual(
+    filterEpisodesByEdition([
+      { episodeId: 'unknown', episodeTitle: '第3集' },
+      { episodeId: 'standard', episodeTitle: '第3集 正片' },
+    ], 'standard').map(ep => ep.episodeId),
+    ['standard'],
+    '普通正片必须有明确版本标记'
+  );
+  assert.equal(detectExplicitEpisodeEdition('第3集'), null);
+  assert.equal(detectExplicitEpisodeEdition('第3集 正片'), 'standard');
 });
 
 test('PARSE TitleSeasonEpisode', async () => {
