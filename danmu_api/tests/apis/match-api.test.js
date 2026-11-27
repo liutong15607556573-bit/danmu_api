@@ -308,6 +308,22 @@ test('POST /api/v2/match 自动匹配接口（离线）', async t => {
       assert.equal(noPreference.body.matches[0].episodeTitle, '【qq】 第1集');
     });
 
+    await t.test('请求显式视频源时严格隔离平台，缺少该平台弹幕则不匹配', async () => {
+      const qiyi = await runMatch({ body: { fileName: '航海王 S01E01', sourceName: '爱奇艺' }, scn: 'platform' });
+      assert.equal(qiyi.body.isMatched, true);
+      assert.equal(qiyi.body.matches[0].animeId, 930005);
+      assert.equal(qiyi.body.matches[0].episodeTitle, '【qiyi】 第1集');
+
+      const qq = await runMatch({ body: { fileName: '航海王 S01E01', videoSourceName: '腾讯视频' }, scn: 'platform' });
+      assert.equal(qq.body.isMatched, true);
+      assert.equal(qq.body.matches[0].animeId, 930004);
+      assert.equal(qq.body.matches[0].episodeTitle, '【qq】 第1集');
+
+      const missing = await runMatch({ body: { fileName: '航海王 S01E01', sourceName: '优酷' }, scn: 'platform' });
+      assert.equal(missing.body.isMatched, false);
+      assert.deepStrictEqual(missing.body.matches, []);
+    });
+
     await t.test('按剧平台优先于全局，支持别名、映射和请求覆盖，不影响其他剧', async () => {
       const env = { TITLE_PLATFORM_MAP: '航海王->iqiyi;另一部->youku', PLATFORM_ORDER: 'qq' };
       for (const [fileName, extraEnv, animeId] of [
