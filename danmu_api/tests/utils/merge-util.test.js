@@ -914,6 +914,10 @@ test('merge 剪辑版本识别不误伤节目名称中的 Live 与 Special', () 
     anime('Natural High (Live) (2026)【电视剧】from aiyifan'),
   ), true, '两边节目标题都明确标记同一 Live 版本时允许合并');
   assert.strictEqual(areAnimeEditionsCompatible(
+    anime('Natural High (SP) (2026)【电视剧】from tencent'),
+    anime('Natural High (2026)【电视剧】from aiyifan'),
+  ), true, '含糊的 SP 缩写不作为 Special 版本证据');
+  assert.strictEqual(areAnimeEditionsCompatible(
     anime('Natural High (Plus) (2026)【电视剧】from tencent'),
     anime('Natural High (Pure) (2026)【电视剧】from aiyifan'),
   ), false, '节目级明确标记不同版本时必须阻止合并');
