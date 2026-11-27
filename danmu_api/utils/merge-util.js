@@ -859,8 +859,9 @@ function hasConflictingEpisodeEditionEvidence(anime) {
 export function areAnimeEditionsCompatible(primaryAnime, secondaryAnime) {
     const primaryEdition = getEditionLabel(primaryAnime?.animeTitle, true);
     const secondaryEdition = getEditionLabel(secondaryAnime?.animeTitle, true);
-    const primaryHasEpisodeMarkers = (primaryAnime?.links || []).some(link => getEditionLabel(link?.title || link?.name));
-    const secondaryHasEpisodeMarkers = (secondaryAnime?.links || []).some(link => getEditionLabel(link?.title || link?.name));
+    const isNonStandardEdition = label => Boolean(label && label !== 'standard');
+    const primaryHasEpisodeMarkers = (primaryAnime?.links || []).some(link => isNonStandardEdition(getEditionLabel(link?.title || link?.name)));
+    const secondaryHasEpisodeMarkers = (secondaryAnime?.links || []).some(link => isNonStandardEdition(getEditionLabel(link?.title || link?.name)));
 
     if (hasConflictingEpisodeEditionEvidence(primaryAnime) || hasConflictingEpisodeEditionEvidence(secondaryAnime)) return false;
     if (primaryEdition || secondaryEdition) {
