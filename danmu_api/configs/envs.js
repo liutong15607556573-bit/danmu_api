@@ -237,10 +237,14 @@ export class Envs {
       orderArr = ['iqiyi', 'tencent', 'youku', 'douban', '360', 'renren', 'hanjutv', 'acfun', 'tmdb', 'aiyifan'];
     }
 
-    // 4K影视固定排在爱壹帆之前；其他已有源的相对顺序不变。
-    orderArr = orderArr.filter(key => key !== '4k');
+    // 仅当当前顺序包含爱壹帆时，将4K影视插到它前面；
+    // 自定义顺序未启用爱壹帆时，不擅自增加其他源，保持用户原配置不变。
     const aiyifanIndex = orderArr.indexOf('aiyifan');
-    orderArr.splice(aiyifanIndex >= 0 ? aiyifanIndex : orderArr.length, 0, '4k');
+    if (aiyifanIndex >= 0) {
+      orderArr = orderArr.filter(key => key !== '4k');
+      const refreshedAiyifanIndex = orderArr.indexOf('aiyifan');
+      orderArr.splice(refreshedAiyifanIndex, 0, '4k');
+    }
     this.accessedEnvVars.set('SOURCE_ORDER', orderArr);
 
     return orderArr;
