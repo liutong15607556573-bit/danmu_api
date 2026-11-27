@@ -472,12 +472,21 @@ export function extractSeasonNumberFromAnimeTitle(animeTitle) {
 }
 
 // 从集标题中提取集数（支持多种格式：第1集、第01集、EP01、E01等）
+/**
+ * 去掉综艺搜索词末尾的期数及期标题，避免“第N期”被通用季度解析器误认为“第N季”。
+ * 仅由已识别为综艺的来源调用，不影响电视剧/动漫的季度匹配。
+ */
+export function stripVarietyEpisodeMarker(title) {
+  if (typeof title !== 'string') return '';
+  return title.replace(/\s*第\s*[0-9一二三四五六七八九十百千万]+\s*期(?:上|下)?[\s\S]*$/i, '').trim();
+}
+
 export function extractEpisodeNumberFromTitle(episodeTitle, ordinalOnly = false) {
   if (!episodeTitle) return null;
   if (ordinalOnly) episodeTitle = episodeTitle.replace(/(?<!\d)(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])(?!\d)/g, ' ');
 
   // 匹配格式：第1集、第01集、第1话、第1回等
-  const chineseMatch = episodeTitle.match(ordinalOnly ? /第\s*(\d+)\s*[集话回期]/ : /第(\d+)[集话回]/);
+  const chineseMatch = episodeTitle.match(ordinalOnly ? /第\s*(\d+)\s*[集话回期]/ : /第(\d+)[集话回期]/);
   if (chineseMatch) {
     return parseInt(chineseMatch[1], 10);
   }
