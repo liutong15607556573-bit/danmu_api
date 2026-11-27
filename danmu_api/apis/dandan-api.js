@@ -311,22 +311,36 @@ export function classifyEpisodeEdition(value) {
   return 'standard';
 }
 
-// 候选来源没有明确版本词时返回 null，不能把“未标记”误当成普通正片。
+// 仅从标题末尾的版本标签识别，避免正文含有 Special、Live 等词时误判。
 export function detectExplicitEpisodeEdition(value) {
-  const text = String(value || '').toLowerCase();
-  const specialEdition = classifyEpisodeEdition(text);
-  if (specialEdition !== 'standard') return specialEdition;
-  if (/(?:^|[.\s_-])standard(?=$|[.\s_-])|正片|普通版|完整版|完整正片/i.test(text)) return 'standard';
+  const text = String(value || '').trim();
+  const suffixPatterns = [
+    ['pure', /(?:^|[.\s_-])(?:pure|uncut)(?:\s*[)】\]]?)$/i, /纯享版?$/],
+    ['plus', /(?:^|[.\s_-])(?:plus|extra)(?:\s*[)】\]]?)$/i, /加更版?$/],
+    ['special', /(?:^|[.\s_-])(?:special|sp)(?:\s*[)】\]]?)$/i, /特辑|特别篇$/],
+    ['live', /(?:^|[.\s_-])(?:live|concert)(?:\s*[)】\]]?)$/i, /直播回放|直播版?$/],
+  ];
+  for (const [edition, english, chinese] of suffixPatterns) {
+    if (english.test(text) || chinese.test(text)) return edition;
+  }
+  if (/(?:^|[.\s_-])standard(?:\s*[)】\]]?)$/i.test(text) || /(?:正片|普通版|完整版|完整正片)$/.test(text)) return 'standard';
   return null;
+}
+
+// 节目标题正文可能含有版本词；只有括号中的独立标签才作为节目级证据。
+export function detectAnimeTitleEdition(value) {
+  const text = String(value || '');
+  const match = text.match(/[（(\[【]\s*(pure|uncut|plus|extra|special|sp|live|concert|standard|纯享版?|加更版?|特辑|特别篇|直播回放|直播版?|正片|普通版|完整版)\s*[）)\]】]\s*$/i);
+  return match ? detectExplicitEpisodeEdition(match[1]) : null;
 }
 
 export function filterEpisodesByEdition(episodes, requestedEdition = 'standard', animeTitle = '') {
   const requested = requestedEdition || 'standard';
-  const animeEdition = detectExplicitEpisodeEdition(animeTitle);
+  const animeEdition = detectAnimeTitleEdition(animeTitle);
   return (episodes || []).filter(episode => {
     const episodeEdition = detectExplicitEpisodeEdition(episode?.episodeTitle ?? episode?.title ?? '');
     const actualEdition = episodeEdition || animeEdition;
-    // 未标记候选仅可作为普通正片的兼容兜底；特殊版本必须有明确证据。
+    // 未标记候选仅可作为普通正片兼容兜底；特殊版本必须有明确证据。
     return actualEdition ? actualEdition === requested : requested === 'standard';
   });
 }
