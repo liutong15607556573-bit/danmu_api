@@ -250,7 +250,7 @@ const idValueCollapseLength = 180;
 const idFieldLabels = {
     // 搜索与匹配
     q: '搜索词', keyword: '搜索词', season: '季', episode: '集', year: '年份', animeId: '剧集 ID',
-    fileName: '文件名', sources: '检索源', rawCount: '原始候选', removedBy: '剔除',
+    fileName: '文件名', edition: '版本类型', sources: '检索源', rawCount: '原始候选', removedBy: '剔除',
     filtersApplied: '启用的过滤', beforeCount: '过滤前数量', filteredCount: '过滤后数量',
     cachedCount: '缓存条数', hit: '命中', cacheKey: '缓存键', ttlMinutes: '有效期（分钟）',
     finalCount: '最终条数', searchCacheWritten: '已写入搜索缓存', mergedCount: '合并后条数', crossSeasonApplied: '跨季扩展',
