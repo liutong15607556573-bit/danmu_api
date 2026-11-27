@@ -2306,7 +2306,9 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
   }
 
   //  跨季集数顺延映射匹配逻辑
-  if (!hasTitlePreference && !bestRes.episode && hasSeasonEpisode(season, episode)) {
+  if (!isVarietyPeriod && !periodPart && !hasTitlePreference && !bestRes.episode && hasSeasonEpisode(season, episode)) {
+    // 综艺「第N期上/下/加更」不是连续剧集数；跨季顺延会忽略期标记，
+    // 并可能按数组位置把先导片当成目标集，故必须彻底禁用该兜底。
     const spilloverRes = findCrossSeasonEpisodeMap(searchData, title, year, season, episode, platform, detailStore);
     if (spilloverRes.resEpisode) {
       bestRes = {
