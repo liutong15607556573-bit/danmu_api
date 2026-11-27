@@ -3782,8 +3782,8 @@ export function alignSourceTimelines(results, sourceNames, realIds, minMatchRati
         for (let i = 0; i < segments.length - 1; i++) {
             boundaries.push((segments[i].end + segments[i + 1].start) / 2);
         }
-        const minTime = anchors[0].sourceTime;
-        const maxTime = anchors[anchors.length - 1].sourceTime;
+        const minTime = segments[0].start;
+        const maxTime = segments[segments.length - 1].end;
         let corrected = 0;
         list.forEach(danmu => {
             const time = getDanmuTime(danmu);
