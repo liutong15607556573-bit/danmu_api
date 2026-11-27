@@ -238,8 +238,10 @@ export function strictTitleMatch(title, query) {
 export function getExplicitSeasonNumber(text, includePeriod = true) {
   if (!text) return null;
   // 默认保留历史行为（「期」可被提取）；标题季度匹配显式传 false，避免把综艺期数当作季数。
-  const periodMarker = includePeriod ? '季期部' : '季部';
-  const match = text.match(new RegExp(`(?:第\\\\s*([0-9一二三四五六七八九十百千万]+)\\\\s*[\\\\${periodMarker}])|(?:S(?:eason)?\\\\s*(\\\\d+))|(?:Part\\\\s*(\\\\d+))`, 'i'));
+  const seasonPattern = includePeriod
+    ? /(?:第\s*([0-9一二三四五六七八九十百千万]+)\s*[季期部])|(?:S(?:eason)?\s*(\d+))|(?:Part\s*(\d+))/i
+    : /(?:第\s*([0-9一二三四五六七八九十百千万]+)\s*[季部])|(?:S(?:eason)?\s*(\d+))|(?:Part\s*(\d+))/i;
+  const match = text.match(seasonPattern);
   if (match) {
     const numStr = match[1] || match[2] || match[3];
     if (numStr) {
