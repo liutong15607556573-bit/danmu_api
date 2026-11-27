@@ -3673,22 +3673,25 @@ export function mergeDanmakuList(listA, listB) {
 export function alignSourceTimelines(results, sourceNames, realIds, minMatchRatio = 0.8, offsetThreshold = 1) {
     if (!Array.isArray(results) || !Array.isArray(sourceNames) || results.length < 2) return results;
 
-    // 参照源按与其他源的唯一文本重合量选择；这里只建立候选参照，不代表它与当前播放文件绝对一致。
-    const textSets = results.map((list) => new Set(
-        (Array.isArray(list) ? list : [])
-            .map(item => normalizeText(getDanmuText(item)))
-            .filter(Boolean)
-    ));
+    const textCounts = results.map((list) => {
+        const counts = new Map();
+        (Array.isArray(list) ? list : []).forEach(item => {
+            const text = normalizeText(getDanmuText(item));
+            if (!text) return;
+            counts.set(text, (counts.get(text) || 0) + 1);
+        });
+        return counts;
+    });
+
+    // 只用两边都恰好出现一次的文本作为时间锚点，避免“哈哈”等重复评论制造笛卡尔积误配。
     const referenceIndex = results.reduce((bestIndex, list, index) => {
-        if (!Array.isArray(list) || list.length === 0 || textSets[index].size === 0) return bestIndex;
+        if (!Array.isArray(list) || list.length === 0 || textCounts[index].size === 0) return bestIndex;
         if (bestIndex < 0) return index;
         const overlapScore = (candidateIndex) => {
             let score = 0;
-            for (let other = 0; other < results.length; other++) {
-                if (other === candidateIndex) continue;
-                for (const text of textSets[candidateIndex]) {
-                    if (textSets[other].has(text)) score++;
-                }
+            for (const [text, count] of textCounts[candidateIndex]) {
+                if (count === 1 && textCounts.some((other, otherIndex) =>
+                    otherIndex !== candidateIndex && other.get(text) === 1)) score++;
             }
             return score;
         };
@@ -3705,90 +3708,69 @@ export function alignSourceTimelines(results, sourceNames, realIds, minMatchRati
 
     const referenceName = sourceNames[referenceIndex] || String(referenceIndex);
     const referenceList = results[referenceIndex];
-    const referenceByText = new Map();
+    const referenceTimes = new Map();
     referenceList.forEach(item => {
         const text = normalizeText(getDanmuText(item));
         const time = getDanmuTime(item);
-        if (!text || !Number.isFinite(time)) return;
-        if (!referenceByText.has(text)) referenceByText.set(text, []);
-        referenceByText.get(text).push(time);
+        if (text && Number.isFinite(time)) {
+            if (!referenceTimes.has(text)) referenceTimes.set(text, []);
+            referenceTimes.get(text).push(time);
+        }
     });
-    referenceByText.forEach(times => times.sort((a, b) => a - b));
 
     log("info", `[merge][aligntimeline] 选择 ${referenceName}:${realIds?.[referenceIndex] || ''} 作为本轮共同内容参照`);
 
     results.forEach((list, idx) => {
         if (idx === referenceIndex || !Array.isArray(list) || !list.length) return;
         const sourceName = sourceNames[idx] || String(idx);
-        const sourceByText = new Map();
+        const sourceTimes = new Map();
         list.forEach(item => {
             const text = normalizeText(getDanmuText(item));
             const time = getDanmuTime(item);
-            if (!text || !Number.isFinite(time) || !referenceByText.has(text)) return;
-            if (!sourceByText.has(text)) sourceByText.set(text, []);
-            sourceByText.get(text).push({ item, time });
+            if (text && Number.isFinite(time)) {
+                if (!sourceTimes.has(text)) sourceTimes.set(text, []);
+                sourceTimes.get(text).push(time);
+            }
         });
 
-        // 重复文本不再一律绑定到参照源最早出现的位置。用一对一时间配对评估偏移，
-        // 防止“好的”“哈哈”等高频重复弹幕把时间轴投票带偏。
-        const offsetCandidates = new Set();
-        sourceByText.forEach((sourceItems, text) => {
-            const referenceTimes = referenceByText.get(text);
-            sourceItems.forEach(({ time }) => referenceTimes.forEach(referenceTime => {
-                offsetCandidates.add(Math.round((time - referenceTime) * 10) / 10);
-            }));
-        });
-
-        const tolerance = 2;
-        let bestOffset = 0;
-        let maxCount = 0;
-        let bestUniqueTextCount = 0;
-        for (const offset of offsetCandidates) {
-            let matched = 0;
-            let uniqueTextCount = 0;
-            sourceByText.forEach((sourceItems, text) => {
-                let textMatched = 0;
-                const available = [...referenceByText.get(text)];
-                sourceItems.slice().sort((a, b) => a.time - b.time).forEach(({ time }) => {
-                    const target = time - offset;
-                    let nearestIndex = -1;
-                    let nearestDistance = Infinity;
-                    available.forEach((referenceTime, index) => {
-                        const distance = Math.abs(referenceTime - target);
-                        if (distance < nearestDistance) {
-                            nearestDistance = distance;
-                            nearestIndex = index;
-                        }
-                    });
-                    if (nearestIndex >= 0 && nearestDistance <= tolerance) {
-                        matched++;
-                        textMatched++;
-                        available.splice(nearestIndex, 1);
-                    }
-                });
-                if (textMatched > 0) uniqueTextCount++;
-            });
-            if (matched > maxCount || (matched === maxCount && uniqueTextCount > bestUniqueTextCount) || (matched === maxCount && uniqueTextCount === bestUniqueTextCount && Math.abs(offset) < Math.abs(bestOffset))) {
-                maxCount = matched;
-                bestOffset = offset;
-                bestUniqueTextCount = uniqueTextCount;
+        const anchorOffsets = [];
+        for (const [text, times] of sourceTimes) {
+            const reference = referenceTimes.get(text);
+            if (times.length === 1 && reference?.length === 1) {
+                anchorOffsets.push(times[0] - reference[0]);
             }
         }
-
-        const minCount = Math.min(referenceList.length, list.length);
-        const matchRatio = minCount > 0 ? maxCount / minCount : 0;
-        if (matchRatio < minMatchRatio || maxCount < 2 || bestUniqueTextCount < 2) {
-            log("info", `[merge][aligntimeline] ${sourceName}:${realIds?.[idx] || ''} 与参照 ${referenceName} 的一对一共同内容不足，跳过对齐`);
+        if (anchorOffsets.length < 2) {
+            log("info", `[merge][aligntimeline] ${sourceName}:${realIds?.[idx] || ''} 唯一文本锚点不足，跳过对齐`);
             return;
         }
+
+        // 以 ±2 秒为一致性窗口，选取票数最多的偏移簇，并用簇内中位数降低单条时间误差。
+        let bestCluster = [];
+        for (const candidate of anchorOffsets) {
+            const cluster = anchorOffsets.filter(offset => Math.abs(offset - candidate) <= 2);
+            if (cluster.length > bestCluster.length) bestCluster = cluster;
+        }
+        const matchRatio = bestCluster.length / anchorOffsets.length;
+        if (matchRatio < minMatchRatio || bestCluster.length < 2) {
+            log("info", `[merge][aligntimeline] ${sourceName}:${realIds?.[idx] || ''} 唯一文本锚点偏移不一致，跳过对齐`);
+            return;
+        }
+        bestCluster.sort((a, b) => a - b);
+        const middle = Math.floor(bestCluster.length / 2);
+        const bestOffset = bestCluster.length % 2
+            ? bestCluster[middle]
+            : (bestCluster[middle - 1] + bestCluster[middle]) / 2;
+
         if (Math.abs(bestOffset) < offsetThreshold) {
             log("info", `[merge][aligntimeline] ${sourceName}:${realIds?.[idx] || ''} 与参照时间轴偏差 ${bestOffset}s，低于阈值`);
             return;
         }
 
-        log("info", `[merge][aligntimeline] ${sourceName}:${realIds?.[idx] || ''} 相对参照 ${referenceName} 校准 ${bestOffset}s (一对一匹配 ${maxCount} 条)`);
+        log("info", `[merge][aligntimeline] ${sourceName}:${realIds?.[idx] || ''} 相对参照 ${referenceName} 校准 ${bestOffset}s (唯一文本锚点 ${bestCluster.length}/${anchorOffsets.length})`);
         list.forEach(danmu => {
             const time = getDanmuTime(danmu);
+            if (!Number.isFinite(time)) return;
             const targetTime = Math.max(0, time - bestOffset);
             if (typeof danmu.p === 'string') danmu.p = danmu.p.replace(/^[^,]+(?=,)/, targetTime.toFixed(2));
             if (danmu.t != null) danmu.t = targetTime;
