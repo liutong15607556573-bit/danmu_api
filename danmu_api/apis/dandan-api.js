@@ -3624,7 +3624,7 @@ export async function getComment(path, queryFormat, segmentFlag, clientIp, inclu
       danmus = await sourceLogContext.run('xigua', () => xiguaSource.getComments(commentUrl, plat, segmentFlag));
     } else if (url.includes('.mddcloud.com.cn')) {
       danmus = await sourceLogContext.run('maiduidui', () => maiduiduiSource.getComments(commentUrl, plat, segmentFlag));
-    } else if (/(^|\\/\\/)(?:www\\.)?4kvm\\.net(?:[:/]|$)/i.test(commentUrl)) {
+    } else if (/(^|\/\/)(?:www\.)?4kvm\.net(?:[:/]|$)/i.test(commentUrl)) {
       danmus = await sourceLogContext.run('4k', () => fourKSource.getComments(commentUrl, '4k', segmentFlag));
     } else if (url.includes('.yfsp.tv')) {
       danmus = await sourceLogContext.run('aiyifan', () => aiyifanSource.getComments(commentUrl, plat, segmentFlag));
