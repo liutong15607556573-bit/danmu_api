@@ -3742,9 +3742,12 @@ export function alignSourceTimelines(results, sourceNames, realIds, minMatchRati
         const tolerance = 2;
         let bestOffset = 0;
         let maxCount = 0;
+        let bestUniqueTextCount = 0;
         for (const offset of offsetCandidates) {
             let matched = 0;
+            let uniqueTextCount = 0;
             sourceByText.forEach((sourceItems, text) => {
+                let textMatched = 0;
                 const available = [...referenceByText.get(text)];
                 sourceItems.slice().sort((a, b) => a.time - b.time).forEach(({ time }) => {
                     const target = time - offset;
@@ -3759,19 +3762,22 @@ export function alignSourceTimelines(results, sourceNames, realIds, minMatchRati
                     });
                     if (nearestIndex >= 0 && nearestDistance <= tolerance) {
                         matched++;
+                        textMatched++;
                         available.splice(nearestIndex, 1);
                     }
                 });
+                if (textMatched > 0) uniqueTextCount++;
             });
-            if (matched > maxCount || (matched === maxCount && Math.abs(offset) < Math.abs(bestOffset))) {
+            if (matched > maxCount || (matched === maxCount && uniqueTextCount > bestUniqueTextCount) || (matched === maxCount && uniqueTextCount === bestUniqueTextCount && Math.abs(offset) < Math.abs(bestOffset))) {
                 maxCount = matched;
                 bestOffset = offset;
+                bestUniqueTextCount = uniqueTextCount;
             }
         }
 
         const minCount = Math.min(referenceList.length, list.length);
         const matchRatio = minCount > 0 ? maxCount / minCount : 0;
-        if (matchRatio < minMatchRatio || maxCount < 2) {
+        if (matchRatio < minMatchRatio || maxCount < 2 || bestUniqueTextCount < 2) {
             log("info", `[merge][aligntimeline] ${sourceName}:${realIds?.[idx] || ''} 与参照 ${referenceName} 的一对一共同内容不足，跳过对齐`);
             return;
         }
