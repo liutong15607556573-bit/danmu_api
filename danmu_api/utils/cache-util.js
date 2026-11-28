@@ -322,7 +322,7 @@ export function getSearchCache(keyword, detailsMap = null) {
     // 明确指定季度时，只允许精确季度收藏键命中。
     // 禁止 resolveFavoriteForSearchKeyword 将“剧名_S1”回退到普通“剧名”
     // 或其他季度收藏；否则错误季度会进入缓存拼接流程，甚至重复命中同一快照。
-    const seasonalKeyword = /_S\\d+$/i.test(String(keyword || ''));
+    const seasonalKeyword = /_S\d+$/i.test(String(keyword || ''));
     const exactFavorite = seasonalKeyword && globals.favoriteCache instanceof Map && globals.favoriteCache.has(keyword)
         ? { keyword, entry: globals.favoriteCache.get(keyword) }
         : null;
