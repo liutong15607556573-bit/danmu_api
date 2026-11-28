@@ -2033,7 +2033,10 @@ function findCrossSeasonEpisodeMap(searchData, title, year, season, episode, pla
     // 中间季未拉取详情(已被 TMDB 边界跳过)时, 仅按其标准集数扣减以推进到目标季, 不参与实际集标题匹配
     if (!seasonData && !seasonIndex) {
       if (boundaryCount && boundaryCount > 0) {
-        if (platforms && currentTargetEpisode <= boundaryCount) break;
+        // 当前请求集号仍落在这个缺失季的 TMDB 标准区间内时必须停止。
+        // 不能因为该季候选暂时没进入搜索结果，就把 S01E01 顺延到 S02/S03E01；
+        // 只有请求集号确实超过该季边界时，才允许扣减并继续跨季查找。
+        if (currentTargetEpisode <= boundaryCount) break;
         currentTargetEpisode -= boundaryCount;
         currentSeason++;
         continue;
