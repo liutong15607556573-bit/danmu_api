@@ -767,22 +767,10 @@ async function searchAnimeBody(url, preferAnimeId, preferSource, detailStore, ta
     return relevant.map(link => extractEpisodeTitle(link.title || ''));
   }, targetPlatform || preference?.platform);
 
-  // 收藏缓存命中后必须直接返回，不能因目标集数判断继续请求外部源。
-  if (!forceRefresh && resolveFavoriteForSearchKeyword(cacheKey)) {
-    const favoriteResults = withAvailableEpisodeCount(getSearchCache(cacheKey, requestAnimeDetailsMap) || [], resolveSearchAnimeDetail);
-    traceStep('搜索·缓存查询', cacheStartedAt, {
-      status: 'hit', reason: '收藏缓存命中',
-      inputs: { q: queryTitle, animeId: preferAnimeId ?? undefined, cacheKey },
-      outputs: { hit: true, cachedCount: favoriteResults.length, count: favoriteResults.length },
-    });
-    return jsonResponse({
-      errorCode: 0,
-      success: true,
-      errorMessage: "",
-      animes: ordered(favoriteResults),
-    });
-  }
-
+  // 收藏缓存不能绕过季集校验。resolveFavoriteForSearchKeyword 会把
+  // “剧名_S1” 回退匹配到普通“剧名”收藏；若收藏快照实际保存的是 S3，
+  // 旧逻辑会在这里直接返回，完全跳过 checkEpisodeSatisfied，导致 S1E1
+  // 仍拿到最新一季。现在统一交给下面的缓存验证流程：不满足目标季集就继续检索。
   // 检查普通搜索缓存；刷新收藏时显式跳过所有缓存。
   let cachedResults = forceRefresh ? null : getSearchCache(cacheKey, requestAnimeDetailsMap);
 
