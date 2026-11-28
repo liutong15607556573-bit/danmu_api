@@ -123,6 +123,15 @@ test('POST /api/v2/match 自动匹配接口（离线）', async t => {
       addCandidate(results, details, createFavoriteAnime('测试剧 第三季', 12, 930021));
       return;
     }
+    if (scenario === 'seasonAliasHijack') {
+      const secondSeason = createFavoriteAnime('测试剧 第二季【TV】from tencent', 3, 930030);
+      secondSeason.aliases = ['测试剧'];
+      const firstSeason = createFavoriteAnime('测试剧 第一季【TV】from tencent', 3, 930031);
+      // 故意让第二季排在第一位，并提供不带季号的别名，模拟错误候选抢占。
+      addCandidate(results, details, secondSeason);
+      addCandidate(results, details, firstSeason);
+      return;
+    }
     if (scenario === 'cacheWarningHit') {
       details.__addAnimeError = 'mock 缓存写入失败';
       addCandidate(results, details, createFavoriteAnime(title, episodeCount, 930003));
@@ -478,6 +487,18 @@ test('POST /api/v2/match 自动匹配接口（离线）', async t => {
       assert.equal(lastSearch.season, null);
       assert.equal(lastSearch.episode, null);
       assert.equal(lastSearch.episodeId, 9300031);
+    });
+
+    await t.test('C 季数严格匹配：第二季排在前且带无季号别名时仍命中第一季', async () => {
+      const { body } = await runMatch({
+        body: { fileName: '测试剧 S01E01' },
+        clientIp: 'c-season-alias-ip',
+        scn: 'seasonAliasHijack'
+      });
+      assert.equal(body.isMatched, true);
+      assert.equal(body.matches[0].animeId, 930031);
+      assert.equal(body.matches[0].animeTitle, '测试剧 第一季【TV】from tencent');
+      assert.equal(body.matches[0].episodeId, 9300311);
     });
 
     await t.test('C 年份过滤：命中同年候选，只有异年候选时不匹配', async () => {
