@@ -336,7 +336,7 @@ test('an unscoped alias cannot make an explicitly third-season candidate match S
       1,
       1,
       null,
-      { animes: [candidate] },
+      { animes: [candidate], tmdbSeasonBoundaries: [{ order: 1, startEpisode: 1 }, { order: 2, startEpisode: 9 }, { order: 3, startEpisode: 17 }] },
       '指环王：力量之戒',
       new Request('http://localhost/api/v2/match'),
       null,
