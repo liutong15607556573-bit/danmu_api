@@ -2181,7 +2181,11 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
                 const tempAnime = { ...anime, animeTitle: candTitle };
                 
                 const seasonOk = matchSeason(tempAnime, title, season);
-                if (seasonOk || animeIsPrefer) {
+                // “记住上次选择”只能提升没有明确季号冲突的候选；
+                // 不能让 S3 候选绕过 matchSeason，抢占 S1 请求。
+                const candidateSeason = extractSeasonNumberFromAnimeTitle(candTitle).season;
+                const explicitSeasonMismatch = candidateSeason !== null && candidateSeason !== season;
+                if (seasonOk || (animeIsPrefer && !explicitSeasonMismatch)) {
                     isMatch = true;
                     break; // 别名命中跳出
                 }
