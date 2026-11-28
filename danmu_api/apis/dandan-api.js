@@ -2157,6 +2157,20 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
         candidateTitles.push(...anime.aliases);
     }
 
+    // 季号必须在“候选条目”层级校验，不能只校验当前命中的别名。
+    // 常见漏洞：第三季条目的主标题带“第三季”，但 aliases 中有不带季号的基础剧名；
+    // S01 请求命中这个别名时，matchSeason(tempAnime) 会把无季号别名当作第一季，
+    // 记忆偏好还可能进一步抬高它的分数，最终错误返回 S03E01。
+    // 只要候选主标题或别名明确声明了季数，就要求候选季数与请求季数一致。
+    if (hasSeasonEpisode(season, episode) && season !== 0 && hasExplicitCandidateSeason(anime)) {
+      const candidateSeason = resolveCandidateSeason(anime);
+      if (candidateSeason !== season) {
+        log("info", `[system] [match] Reject candidate-level season mismatch: candidate S${candidateSeason}, requested S${season}, title=${anime.animeTitle}`);
+        candidates.push({ title: anime.animeTitle, source: anime.source, stage: '季数不符', detail: `候选 S${candidateSeason} / 请求 S${season}` });
+        continue;
+      }
+    }
+
     // 1. 标题/年份/别名综合匹配检查
     for (const candTitle of candidateTitles) {
         if (!candTitle) continue;
