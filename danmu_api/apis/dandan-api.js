@@ -459,7 +459,7 @@ export function matchSeason(anime, queryTitle, season) {
  * @param {string|null} targetPlatform 期望优先验证的目标平台
  * @returns {boolean} 是否满足需求
  */
-function checkEpisodeSatisfied(animesList, querySeason, queryEpisode, requestAnimeDetailsMap, targetPlatform, unsatisfiedOut = null) {
+export function checkEpisodeSatisfied(animesList, querySeason, queryEpisode, requestAnimeDetailsMap, targetPlatform, unsatisfiedOut = null) {
   if (queryEpisode === null || querySeason === null || querySeason === 0) return true;
 
   let targetPlatforms = [];
@@ -507,11 +507,9 @@ function checkEpisodeSatisfied(animesList, querySeason, queryEpisode, requestAni
           preferredPlatform: tPlat === '_any_' ? null : tPlat
         });
 
-        if (filtered.some(ep => extractEpisodeNumberFromTitle(ep.episodeTitle) === queryEpisode)) {
-          isEpisodeSatisfied = true;
-          break;
-        }
-
+        // 集号必须在目标季内判断。不同季度通常都会有 E1；
+        // 若先检查集号再检查季号，S3E1 会错误地让 S1E1 搜索提前结束，
+        // 从而把最新一季候选当成目标季结果返回。
         const candidateTitles = [anime.animeTitle];
         if (anime.aliases && Array.isArray(anime.aliases)) candidateTitles.push(...anime.aliases);
 
@@ -522,6 +520,11 @@ function checkEpisodeSatisfied(animesList, querySeason, queryEpisode, requestAni
           if (s !== null) { sNum = s; break; }
         }
         if (sNum === null) sNum = 1;
+
+        if (sNum === querySeason && filtered.some(ep => extractEpisodeNumberFromTitle(ep.episodeTitle) === queryEpisode)) {
+          isEpisodeSatisfied = true;
+          break;
+        }
 
         const currentMax = seasonCapacities.get(sNum) || 0;
         if (filtered.length > currentMax) {
