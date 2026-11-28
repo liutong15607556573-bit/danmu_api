@@ -405,6 +405,19 @@ export function matchSeason(anime, queryTitle, season) {
   const match = anime.animeTitle.match(/^(.*?)\(\d{4}\)/);
   const originalTitle = match ? match[1].trim() : anime.animeTitle.split("(")[0].trim();
   const normalizedAnimeTitle = normalizeTitleForMatch(originalTitle);
+
+  // 先对候选原始标题做明确季号校验。不能只依赖去标点后的后缀正则：
+  // 例如“指环王：力量之戒 第三季(2026)”必须拒绝 S01 请求，
+  // 即使标题包含基础剧名，或该候选被记忆偏好提升优先级。
+  // 使用公共解析器统一支持“第X季 / S3 / Season 3 / Part 3”等格式。
+  if (season !== 0) {
+    const explicitCandidateSeason = extractSeasonNumberFromAnimeTitle(originalTitle).season;
+    if (explicitCandidateSeason !== null && explicitCandidateSeason !== season) {
+      log("info", `[system] [match] Reject explicit season mismatch: candidate S${explicitCandidateSeason}, requested S${season}, title=${originalTitle}`);
+      return false;
+    }
+  }
+
   // 本地上传的年份单独匹配，文件名中的年份不属于剧名或季号。
   const seasonQueryTitle = anime.source === 'local'
     ? queryTitle.replace(/[（(]\s*(?:19|20)\d{2}\s*[）)]/g, '').trim()
