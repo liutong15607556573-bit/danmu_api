@@ -1721,9 +1721,10 @@ async function matchAniAndEpByAi(season, episode, year, searchData, title, req, 
       log("error", `[system] [match] AI returned invalid anime index: ${animeIndex}`);
       return { resEpisode: null, resAnime: null };
     }
-    // AI 选择也必须遵守明确季号；错误季候选交回常规季集匹配，而不是直接取同编号集。
-    if (season > 0 && resolveCandidateSeason(selectedAnime) !== season) {
-      log("info", `[system] [match] AI selected a different season for S${season}; falling back to strict season matching`);
+    // AI 结果同样不能跨季：只拒绝明确标注为其他季的候选，未标季标题仍按原逻辑处理。
+    const aiCandidateSeason = resolveExplicitCandidateSeason(selectedAnime);
+    if (season > 0 && aiCandidateSeason !== null && aiCandidateSeason !== season) {
+      log("info", `[system] [match] AI selected S${aiCandidateSeason} for requested S${season}; falling back to strict season matching`);
       return { resEpisode: null, resAnime: null };
     }
 
@@ -1801,17 +1802,20 @@ function computeTargetEpisode(offsets, season, episode, filteredEpisodes, target
   return targetEpisode;
 }
 
-// 候选季号：取标题及别名中首个可识别的季号，均无法识别时按第 1 季处理
-export function resolveCandidateSeason(anime) {
-  const titles = [anime.animeTitle];
-  if (anime.aliases && Array.isArray(anime.aliases)) titles.push(...anime.aliases);
+// 候选显式季号：优先看主标题；主标题未标季时，仅在别名季号一致时采用。
+function resolveExplicitCandidateSeason(anime) {
+  const primarySeason = extractSeasonNumberFromAnimeTitle(anime?.animeTitle || '').season;
+  if (primarySeason !== null) return primarySeason;
+  const aliasSeasons = [...new Set((anime?.aliases || [])
+    .filter(Boolean)
+    .map(title => extractSeasonNumberFromAnimeTitle(title).season)
+    .filter(season => season !== null))];
+  return aliasSeasons.length === 1 ? aliasSeasons[0] : null;
+}
 
-  for (const candTitle of titles) {
-    if (!candTitle) continue;
-    const s = extractSeasonNumberFromAnimeTitle(candTitle).season;
-    if (s !== null) return s;
-  }
-  return 1;
+// 候选季号：未标季的普通标题按第 1 季处理，供既有排序与索引逻辑使用。
+export function resolveCandidateSeason(anime) {
+  return resolveExplicitCandidateSeason(anime) ?? 1;
 }
 
 function inferSeasonOffset(ranges) {
@@ -2124,6 +2128,13 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
 
   // 遍历所有搜索结果，寻找最佳匹配
   for (const anime of searchData.animes) {
+    // 标题或别名明确标注了其他季时，不能因别名不带季号而把该候选误认成目标季。
+    const explicitCandidateSeason = resolveExplicitCandidateSeason(anime);
+    if (season > 0 && explicitCandidateSeason !== null && explicitCandidateSeason !== season) {
+      candidates.push({ title: anime.animeTitle, source: anime.source, stage: '季数不符', detail: `候选 S${explicitCandidateSeason}，请求 S${season}` });
+      continue;
+    }
+
     const candidateQueryTitle = anime.source === 'local'
       ? normalizeTitleForMatch(title.replace(/[（(]\s*(?:19|20)\d{2}\s*[）)]/g, '').trim())
       : normalizedTitle;
@@ -2329,20 +2340,13 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
 }
 
 export async function fallbackMatchAniAndEp(searchData, req, season, episode, year, title, resEpisode, resAnime, offsets, detailStore = null, preference = null, edition = 'standard') {
-  // 明确指定季数时，兜底也只能在该季内找同编号集；其他季只能由下面的跨季溢出映射按季容量计算后命中。
-  // season=0 是综艺期数模式、season=null 是电影模式，继续保留原有候选顺序。
-  const sameSeasonAnimes = [];
-  const restAnimes = [];
+  // 保留原兜底候选顺序；明确标注为其他季的候选在循环内排除，未标季候选仍可参与原有逻辑。
   for (const anime of searchData.animes) {
-    if (season && resolveCandidateSeason(anime) === season) {
-      sameSeasonAnimes.push(anime);
-    } else {
-      restAnimes.push(anime);
+    const explicitCandidateSeason = resolveExplicitCandidateSeason(anime);
+    if (season > 0 && explicitCandidateSeason !== null && explicitCandidateSeason !== season) {
+      log("info", `[system] [match] Fallback skipped S${explicitCandidateSeason} candidate for requested S${season}: ${anime.animeTitle}`);
+      continue;
     }
-  }
-  const fallbackAnimes = season > 0 ? sameSeasonAnimes : [...sameSeasonAnimes, ...restAnimes];
-
-  for (const anime of fallbackAnimes) {
     // 年份匹配优先（如果提供了年份）
     if (year && !matchYear(anime, year)) {
       log("info", `[system] [match] Fallback: Year mismatch: anime year ${extractYear(anime.animeTitle)} vs query year ${year}`);
