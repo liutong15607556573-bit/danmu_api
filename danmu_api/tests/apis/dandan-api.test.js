@@ -177,6 +177,24 @@ test('综艺未标明季数时允许匹配平台返回的任意季标题', () =>
   assert.equal(matchSeason(anime, '奔跑吧', 0), true);
   assert.equal(matchSeason({ ...anime, animeTitle: '王牌对王牌第9季(2025)【综艺】' }, '奔跑吧', 0), false);
 });
+test('明确第三季候选不得匹配《指环王：力量之戒》第一季', () => {
+  const queryTitle = '指环王：力量之戒';
+  const wrongSeason = {
+    animeTitle: '指环王：力量之戒 第三季(2026)【电视剧】 from renren',
+    source: 'renren',
+    aliases: [],
+  };
+  const firstSeason = {
+    animeTitle: '指环王：力量之戒 第一季(2022)【电视剧】 from renren',
+    source: 'renren',
+    aliases: [],
+  };
+
+  assert.equal(matchSeason(wrongSeason, queryTitle, 1), false);
+  assert.equal(matchSeason(firstSeason, queryTitle, 1), true);
+  assert.equal(matchSeason(wrongSeason, queryTitle, 3), true);
+});
+
 test('season matching unifies traditional and simplified titles', () => {
   const queryTitle = '无职转生 ～到了异世界就拿出真本事～';
 
