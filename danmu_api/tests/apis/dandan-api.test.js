@@ -6,7 +6,7 @@ dotenv.config();
 
 import test from 'node:test';
 import assert from 'node:assert';
-import { extractTitleSeasonEpisode, buildSearchAnimeUrl, matchSeason, matchAniAndEp, fallbackMatchAniAndEp, filterSameEpisodeTitle, buildBangumiData, resolveEpisodeCount, applyEpisodeTitleFilter, filterEpisodesByTitle, filterEpisodesByEdition, classifyEpisodeEdition, detectExplicitEpisodeEdition, detectAnimeTitleEdition, withAvailableEpisodeCount, buildMatchScoring, resolveSegmentCommentCacheKey } from '../../apis/dandan-api.js';
+import { extractTitleSeasonEpisode, buildSearchAnimeUrl, matchSeason, matchAniAndEp, fallbackMatchAniAndEp, filterSameEpisodeTitle, buildBangumiData, resolveEpisodeCount, applyEpisodeTitleFilter, filterEpisodesByTitle, filterEpisodesByEdition, classifyEpisodeEdition, detectExplicitEpisodeEdition, detectAnimeTitleEdition, withAvailableEpisodeCount, buildMatchScoring, resolveSegmentCommentCacheKey, checkEpisodeSatisfied } from '../../apis/dandan-api.js';
 import { getSearchCache, setSearchCache } from '../../utils/cache-util.js';
 import { addFavorite, removeFavorite, saveFavorites } from '../../utils/favorite-util.js';
 import { Globals, globals } from '../../configs/globals.js';
@@ -216,6 +216,35 @@ test('season matching unifies traditional and simplified titles', () => {
   assert.equal(normalizeTitleForMatch('无职英雄 技能什么的毫无用处').includes(normalizeTitleForMatch(queryTitle)), false);
   assert.equal(matchSeason({ animeTitle: '无职英雄 技能什么的毫无用处(2025)', source: 'dandan' }, queryTitle, 3), false);
 });
+test('episode satisfaction must not treat a later season E1 as the requested season E1', () => {
+  Globals.init({ LOG_LEVEL: 'error', ENABLE_ANIME_EPISODE_FILTER: 'false', GROUP_MINUTE: '0', DANMU_LIMIT: '0', CONVERT_COLOR: 'default', BLOCKED_WORDS: '' });
+
+  const buildSeason = (animeId, season) => ({
+    animeId,
+    bangumiId: String(animeId),
+    animeTitle: `某多季剧 第${season}季(2026)【电视剧】from dandan`,
+    aliases: [],
+    source: 'dandan',
+    startDate: '2026-01-01T00:00:00.000Z',
+    episodeCount: 2,
+    links: [
+      { id: animeId * 10 + 1, title: '【测试源】第1集', url: `test-${animeId}-1` },
+      { id: animeId * 10 + 2, title: '【测试源】第2集', url: `test-${animeId}-2` },
+    ],
+  });
+
+  const firstSeason = buildSeason(9101, 1);
+  const thirdSeason = buildSeason(9103, 3);
+  const detailStore = new Map([[9101, firstSeason], [9103, thirdSeason]]);
+
+  assert.equal(checkEpisodeSatisfied([thirdSeason], 1, 1, detailStore, null), false,
+    'S3E1 must not satisfy an S1E1 search');
+  assert.equal(checkEpisodeSatisfied([firstSeason], 1, 1, detailStore, null), true,
+    'S1E1 should satisfy an S1E1 search');
+  assert.equal(checkEpisodeSatisfied([thirdSeason], 3, 1, detailStore, null), true,
+    'S3E1 should still satisfy an S3E1 search');
+});
+
 test('movie matching unifies traditional and simplified titles', async () => {
   Globals.init({ LOG_LEVEL: 'error' });
 
