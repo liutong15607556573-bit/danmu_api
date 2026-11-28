@@ -1720,6 +1720,13 @@ async function matchAniAndEpByAi(season, episode, year, searchData, title, req, 
       return { resEpisode: null, resAnime: null };
     }
 
+    // AI 可能忽略请求季号而选中另一季的同名候选；明确标注季号不一致时，
+    // 拒绝 AI 结果并交给常规季集匹配，避免 S01E01 命中 S02E01。
+    if (hasSeasonEpisode(season, episode) && hasExplicitCandidateSeason(selectedAnime) && resolveCandidateSeason(selectedAnime) !== season) {
+      log('info', `[system] [match] AI selected a different explicit season (${resolveCandidateSeason(selectedAnime)}) for requested S${season}E${episode}; falling back to normal matching`);
+      return { resEpisode: null, resAnime: null };
+    }
+
     // AI 有时会把同名电影选为首个候选；存在季集参数时交给常规匹配，
     // 让多集电视剧候选按季集和集数优先级决策，避免单集电影抢占 S01E01。
     const bangumiData = getBangumiDataForMatch(selectedAnime, detailStore);
