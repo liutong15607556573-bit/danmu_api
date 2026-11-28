@@ -367,6 +367,23 @@ test('restoreQueryCache 请求记录先去重后截断到上限', async () => {
 });
 
 
+test('cache-util 指定季度时不回退命中普通剧名或其他季度收藏', () => {
+  reset();
+  const generic = makeAnime(9103, { title: '多季剧 第三季', links: [{ id: 91031, title: 'E1' }] });
+  const seasonOne = makeAnime(9101, { title: '多季剧 第一季', links: [{ id: 91011, title: 'E1' }] });
+  Globals.favoriteCache.set('多季剧', { results: [generic], details: [generic], timestamp: Date.now() });
+  Globals.favoriteCache.set('多季剧_S3', { results: [generic], details: [generic], timestamp: Date.now() });
+
+  assert.strictEqual(getSearchCache('多季剧_S1'), null,
+    'S1 查询不得回退到普通剧名或 S3 收藏，避免错误季缓存及跨季拼接循环');
+  assert.strictEqual(getSearchCache('多季剧'), Globals.favoriteCache.get('多季剧').results,
+    '不指定季度的普通标题搜索仍可使用收藏回退');
+
+  Globals.favoriteCache.set('多季剧_S1', { results: [seasonOne], details: [seasonOne], timestamp: Date.now() });
+  assert.deepStrictEqual(getSearchCache('多季剧_S1'), [seasonOne],
+    'S1 查询仍能精确命中 S1 收藏');
+});
+
 test('cache-util 搜索缓存命中后刷新 LRU 顺序', () => {
   reset({ SEARCH_CACHE_MINUTES: '30' });
   for (let i = 0; i < 500; i++) {
