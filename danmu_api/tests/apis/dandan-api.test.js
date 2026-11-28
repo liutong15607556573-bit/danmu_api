@@ -345,7 +345,7 @@ test('an unscoped alias cannot make an explicitly third-season candidate match S
       new Map([[String(candidate.animeId), candidate]])
     );
 
-    assert.equal(result.resAnime, null, `S${resolveCandidateSeason(candidate)} candidate ${candidate.animeId} must not match S01`);
+    assert.equal(result.resAnime, null, `candidate ${candidate.animeId} must not match S01`);
     assert.equal(result.resEpisode, null);
   }
 
