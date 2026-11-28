@@ -302,6 +302,56 @@ test('episode-number deduplication prefers the requested platform', () => {
   );
 });
 
+test('an unscoped alias cannot make an explicitly third-season candidate match S01', async () => {
+  Globals.init({ REMEMBER_LAST_SELECT: 'true', LOG_LEVEL: 'error' });
+
+  const buildThirdSeason = (animeId, animeTitle, aliases) => ({
+    animeId,
+    bangumiId: String(animeId),
+    animeTitle,
+    aliases,
+    source: 'renren',
+    type: 'tvseries',
+    episodeCount: 12,
+    links: Array.from({ length: 12 }, (_, index) => ({
+      id: animeId * 100 + index + 1,
+      title: `【renren】 第${String(index + 1).padStart(2, '0')}集`,
+      url: `https://example.com/${animeId}/episode-${index + 1}`,
+    })),
+  });
+
+  const thirdSeasonWithBaseAlias = buildThirdSeason(
+    98732,
+    '指环王：力量之戒 第三季(2026)【电视剧】 from renren',
+    ['指环王：力量之戒']
+  );
+  const unscopedTitleWithThirdSeasonAlias = buildThirdSeason(
+    98733,
+    '指环王：力量之戒(2026)【电视剧】 from renren',
+    ['指环王：力量之戒 第三季']
+  );
+
+  for (const candidate of [thirdSeasonWithBaseAlias, unscopedTitleWithThirdSeasonAlias]) {
+    const result = await matchAniAndEp(
+      1,
+      1,
+      null,
+      { animes: [candidate] },
+      '指环王：力量之戒',
+      new Request('http://localhost/api/v2/match'),
+      null,
+      String(candidate.animeId),
+      null,
+      new Map([[String(candidate.animeId), candidate]])
+    );
+
+    assert.equal(result.resAnime, null, `S${resolveCandidateSeason(candidate)} candidate ${candidate.animeId} must not match S01`);
+    assert.equal(result.resEpisode, null);
+  }
+
+  Globals.init({ REMEMBER_LAST_SELECT: 'false', LOG_LEVEL: 'error' });
+});
+
 test('remembered preference must not override an explicitly different season', async () => {
   Globals.init({ REMEMBER_LAST_SELECT: 'true', LOG_LEVEL: 'error' });
 
