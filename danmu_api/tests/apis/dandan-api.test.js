@@ -302,6 +302,38 @@ test('episode-number deduplication prefers the requested platform', () => {
   );
 });
 
+test('remembered preference must not override an explicitly different season', async () => {
+  Globals.init({ REMEMBER_LAST_SELECT: 'true', LOG_LEVEL: 'error' });
+
+  const thirdSeason = {
+    animeId: 98731,
+    bangumiId: '98731',
+    animeTitle: '指环王：力量之戒 第三季(2026)【电视剧】 from renren',
+    aliases: [],
+    source: 'renren',
+    type: 'tvseries',
+    episodeCount: 1,
+    links: [{ id: 987311, title: '【renren】 第01集', url: 'https://example.com/season3/episode1' }],
+  };
+
+  const result = await matchAniAndEp(
+    1,
+    1,
+    null,
+    { animes: [thirdSeason] },
+    '指环王：力量之戒',
+    new Request('http://localhost/api/v2/match'),
+    null,
+    '98731',
+    null,
+    new Map([['98731', thirdSeason]])
+  );
+
+  assert.equal(result.resAnime, null);
+  assert.equal(result.resEpisode, null);
+  Globals.init({ REMEMBER_LAST_SELECT: 'false', LOG_LEVEL: 'error' });
+});
+
 test('normal matching keeps the requested platform and exact episode', async () => {
   Globals.init({ REMEMBER_LAST_SELECT: 'false', LOG_LEVEL: 'error' });
 
