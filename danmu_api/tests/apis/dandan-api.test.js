@@ -8,7 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import { extractTitleSeasonEpisode, buildSearchAnimeUrl, matchSeason, matchAniAndEp, fallbackMatchAniAndEp, filterSameEpisodeTitle, buildBangumiData, resolveEpisodeCount, applyEpisodeTitleFilter, filterEpisodesByTitle, filterEpisodesByEdition, classifyEpisodeEdition, detectExplicitEpisodeEdition, detectAnimeTitleEdition, withAvailableEpisodeCount, buildMatchScoring, resolveSegmentCommentCacheKey, checkEpisodeSatisfied } from '../../apis/dandan-api.js';
 import { getSearchCache, setSearchCache } from '../../utils/cache-util.js';
-import { addFavorite, removeFavorite, saveFavorites } from '../../utils/favorite-util.js';
+import { addFavorite, removeFavorite, resolveFavoriteForSearchKeyword, saveFavorites } from '../../utils/favorite-util.js';
 import { Globals, globals } from '../../configs/globals.js';
 import { normalizeTitleForMatch } from '../../utils/common-util.js';
 import { urlPrefix } from '../helpers/context.js';
@@ -216,6 +216,26 @@ test('season matching unifies traditional and simplified titles', () => {
   assert.equal(normalizeTitleForMatch('无职英雄 技能什么的毫无用处').includes(normalizeTitleForMatch(queryTitle)), false);
   assert.equal(matchSeason({ animeTitle: '无职英雄 技能什么的毫无用处(2025)', source: 'dandan' }, queryTitle, 3), false);
 });
+test('generic favorite snapshot from a later season must not satisfy an S1 search', () => {
+  Globals.init({ LOG_LEVEL: 'error', ENABLE_ANIME_EPISODE_FILTER: 'false', GROUP_MINUTE: '0', DANMU_LIMIT: '0', CONVERT_COLOR: 'default', BLOCKED_WORDS: '' });
+
+  const thirdSeason = {
+    animeId: 9303,
+    bangumiId: '9303',
+    animeTitle: '指环王：力量之戒 第三季(2026)【电视剧】 from renren',
+    aliases: [],
+    source: 'renren',
+    episodeCount: 8,
+    links: [{ id: '930301', title: 'E1【renren】', url: 'https://example.invalid/s3e1' }],
+  };
+  addFavorite('指环王：力量之戒', [thirdSeason], [thirdSeason]);
+  const favorite = resolveFavoriteForSearchKeyword('指环王：力量之戒_S1');
+  assert.ok(favorite, 'generic favorite is currently eligible for seasonal lookup');
+  assert.equal(checkEpisodeSatisfied(favorite.entry.results, 1, 1, new Map([[9303, thirdSeason]]), null), false,
+    'a generic favorite containing only S3 must be rejected for S1E1');
+  removeFavorite('指环王：力量之戒');
+});
+
 test('episode satisfaction must not treat a later season E1 as the requested season E1', () => {
   Globals.init({ LOG_LEVEL: 'error', ENABLE_ANIME_EPISODE_FILTER: 'false', GROUP_MINUTE: '0', DANMU_LIMIT: '0', CONVERT_COLOR: 'default', BLOCKED_WORDS: '' });
 
