@@ -1807,6 +1807,13 @@ export function resolveCandidateSeason(anime) {
   return 1;
 }
 
+// 区分“明确标注了其他季度”和“标题没有季号”的候选。
+// fallback 只能对后者放宽，不能把明确的第二季/第三季当成第一季兜底。
+function hasExplicitCandidateSeason(anime) {
+  const titles = [anime?.animeTitle, ...(Array.isArray(anime?.aliases) ? anime.aliases : [])];
+  return titles.some(title => title && extractSeasonNumberFromAnimeTitle(title).season !== null);
+}
+
 function inferSeasonOffset(ranges) {
   const relative = ranges.filter(range => range.seasonScoped || range.first === 1);
   const relativeEnd = relative.reduce((last, range) => Math.max(last, range.last), 0);
@@ -2322,18 +2329,22 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
 }
 
 export async function fallbackMatchAniAndEp(searchData, req, season, episode, year, title, resEpisode, resAnime, offsets, detailStore = null, preference = null, edition = 'standard') {
-  // 兜底先尝试季号与目标季一致的候选，全部落空后再退回不限季的取值逻辑，避免直接取到其它季的同集号
+  // 兜底优先尝试目标季候选。标题明确标注为其他季的候选绝不能跨季兜底，
+  // 否则 S01E01 在第一季候选未直接命中时会错误落到第二季的第 1 集。
+  // 未标注季号的候选仍保留兼容性回退；真正的跨季顺延由 findCrossSeasonEpisodeMap 负责。
   const sameSeasonAnimes = [];
-  const restAnimes = [];
+  const unscopedAnimes = [];
   for (const anime of searchData.animes) {
-    if (season && resolveCandidateSeason(anime) === season) {
+    if (!season || resolveCandidateSeason(anime) === season) {
       sameSeasonAnimes.push(anime);
+    } else if (!hasExplicitCandidateSeason(anime)) {
+      unscopedAnimes.push(anime);
     } else {
-      restAnimes.push(anime);
+      log("info", `[system] [match] Fallback: skip explicitly different season candidate ${anime.animeTitle} for S${season}`);
     }
   }
 
-  for (const anime of [...sameSeasonAnimes, ...restAnimes]) {
+  for (const anime of [...sameSeasonAnimes, ...unscopedAnimes]) {
     // 年份匹配优先（如果提供了年份）
     if (year && !matchYear(anime, year)) {
       log("info", `[system] [match] Fallback: Year mismatch: anime year ${extractYear(anime.animeTitle)} vs query year ${year}`);
