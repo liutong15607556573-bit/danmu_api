@@ -494,7 +494,9 @@ function checkEpisodeSatisfied(animesList, querySeason, queryEpisode, requestAni
           preferredPlatform: tPlat === '_any_' ? null : tPlat
         });
 
-        if (filtered.some(ep => extractEpisodeNumberFromTitle(ep.episodeTitle) === queryEpisode)) {
+        // 目标季集是否满足必须同时校验候选季号；不能让 S2E1 的存在误判为 S1E1 已满足。
+        if (resolveCandidateSeason(anime) === querySeason
+          && filtered.some(ep => extractEpisodeNumberFromTitle(ep.episodeTitle) === queryEpisode)) {
           isEpisodeSatisfied = true;
           break;
         }
@@ -1719,6 +1721,11 @@ async function matchAniAndEpByAi(season, episode, year, searchData, title, req, 
       log("error", `[system] [match] AI returned invalid anime index: ${animeIndex}`);
       return { resEpisode: null, resAnime: null };
     }
+    // AI 选择也必须遵守明确季号；错误季候选交回常规季集匹配，而不是直接取同编号集。
+    if (season > 0 && resolveCandidateSeason(selectedAnime) !== season) {
+      log("info", `[system] [match] AI selected a different season for S${season}; falling back to strict season matching`);
+      return { resEpisode: null, resAnime: null };
+    }
 
     // AI 有时会把同名电影选为首个候选；存在季集参数时交给常规匹配，
     // 让多集电视剧候选按季集和集数优先级决策，避免单集电影抢占 S01E01。
@@ -2322,7 +2329,8 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
 }
 
 export async function fallbackMatchAniAndEp(searchData, req, season, episode, year, title, resEpisode, resAnime, offsets, detailStore = null, preference = null, edition = 'standard') {
-  // 兜底先尝试季号与目标季一致的候选，全部落空后再退回不限季的取值逻辑，避免直接取到其它季的同集号
+  // 明确指定季数时，兜底也只能在该季内找同编号集；其他季只能由下面的跨季溢出映射按季容量计算后命中。
+  // season=0 是综艺期数模式、season=null 是电影模式，继续保留原有候选顺序。
   const sameSeasonAnimes = [];
   const restAnimes = [];
   for (const anime of searchData.animes) {
@@ -2332,8 +2340,9 @@ export async function fallbackMatchAniAndEp(searchData, req, season, episode, ye
       restAnimes.push(anime);
     }
   }
+  const fallbackAnimes = season > 0 ? sameSeasonAnimes : [...sameSeasonAnimes, ...restAnimes];
 
-  for (const anime of [...sameSeasonAnimes, ...restAnimes]) {
+  for (const anime of fallbackAnimes) {
     // 年份匹配优先（如果提供了年份）
     if (year && !matchYear(anime, year)) {
       log("info", `[system] [match] Fallback: Year mismatch: anime year ${extractYear(anime.animeTitle)} vs query year ${year}`);
