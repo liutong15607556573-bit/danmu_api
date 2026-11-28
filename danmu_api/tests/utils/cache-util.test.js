@@ -382,6 +382,8 @@ test('cache-util 指定季度时不回退命中普通剧名或其他季度收藏
   Globals.favoriteCache.set('多季剧_S1', { results: [seasonOne], details: [seasonOne], timestamp: Date.now() });
   assert.deepStrictEqual(getSearchCache('多季剧_S1'), [seasonOne],
     'S1 查询仍能精确命中 S1 收藏');
+  assert.deepStrictEqual(getSearchCache('多季剧_S3'), [generic],
+    'S3 查询仍能精确命中 S3 收藏');
 });
 
 test('cache-util 搜索缓存命中后刷新 LRU 顺序', () => {
