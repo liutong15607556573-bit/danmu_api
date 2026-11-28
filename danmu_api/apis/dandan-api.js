@@ -1720,6 +1720,13 @@ async function matchAniAndEpByAi(season, episode, year, searchData, title, req, 
       return { resEpisode: null, resAnime: null };
     }
 
+    // AI 可能忽略请求季号而选中另一季的同名候选；明确标注季号不一致时，
+    // 拒绝 AI 结果并交给常规季集匹配，避免 S01E01 命中 S02E01。
+    if (hasSeasonEpisode(season, episode) && hasExplicitCandidateSeason(selectedAnime) && resolveCandidateSeason(selectedAnime) !== season) {
+      log('info', `[system] [match] AI selected a different explicit season (${resolveCandidateSeason(selectedAnime)}) for requested S${season}E${episode}; falling back to normal matching`);
+      return { resEpisode: null, resAnime: null };
+    }
+
     // AI 有时会把同名电影选为首个候选；存在季集参数时交给常规匹配，
     // 让多集电视剧候选按季集和集数优先级决策，避免单集电影抢占 S01E01。
     const bangumiData = getBangumiDataForMatch(selectedAnime, detailStore);
@@ -1805,6 +1812,13 @@ export function resolveCandidateSeason(anime) {
     if (s !== null) return s;
   }
   return 1;
+}
+
+// 区分“明确标注了其他季度”和“标题没有季号”的候选。
+// fallback 只能对后者放宽，不能把明确的第二季/第三季当成第一季兜底。
+function hasExplicitCandidateSeason(anime) {
+  const titles = [anime?.animeTitle, ...(Array.isArray(anime?.aliases) ? anime.aliases : [])];
+  return titles.some(title => title && extractSeasonNumberFromAnimeTitle(title).season !== null);
 }
 
 function inferSeasonOffset(ranges) {
@@ -2322,18 +2336,22 @@ export async function matchAniAndEp(season, episode, year, searchData, title, re
 }
 
 export async function fallbackMatchAniAndEp(searchData, req, season, episode, year, title, resEpisode, resAnime, offsets, detailStore = null, preference = null, edition = 'standard') {
-  // 兜底先尝试季号与目标季一致的候选，全部落空后再退回不限季的取值逻辑，避免直接取到其它季的同集号
+  // 兜底优先尝试目标季候选。标题明确标注为其他季的候选绝不能跨季兜底，
+  // 否则 S01E01 在第一季候选未直接命中时会错误落到第二季的第 1 集。
+  // 未标注季号的候选仍保留兼容性回退；真正的跨季顺延由 findCrossSeasonEpisodeMap 负责。
   const sameSeasonAnimes = [];
-  const restAnimes = [];
+  const unscopedAnimes = [];
   for (const anime of searchData.animes) {
-    if (season && resolveCandidateSeason(anime) === season) {
+    if (!season || resolveCandidateSeason(anime) === season) {
       sameSeasonAnimes.push(anime);
+    } else if (!hasExplicitCandidateSeason(anime)) {
+      unscopedAnimes.push(anime);
     } else {
-      restAnimes.push(anime);
+      log("info", `[system] [match] Fallback: skip explicitly different season candidate ${anime.animeTitle} for S${season}`);
     }
   }
 
-  for (const anime of [...sameSeasonAnimes, ...restAnimes]) {
+  for (const anime of [...sameSeasonAnimes, ...unscopedAnimes]) {
     // 年份匹配优先（如果提供了年份）
     if (year && !matchYear(anime, year)) {
       log("info", `[system] [match] Fallback: Year mismatch: anime year ${extractYear(anime.animeTitle)} vs query year ${year}`);
