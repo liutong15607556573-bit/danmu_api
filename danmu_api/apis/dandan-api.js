@@ -494,8 +494,9 @@ function checkEpisodeSatisfied(animesList, querySeason, queryEpisode, requestAni
           preferredPlatform: tPlat === '_any_' ? null : tPlat
         });
 
-        // 目标季集是否满足必须同时校验候选季号；不能让 S2E1 的存在误判为 S1E1 已满足。
-        if (resolveCandidateSeason(anime) === querySeason
+        // 只排除明确标注为其他季的候选；未标季的聚合条目继续沿用原有覆盖范围。
+        const explicitSeason = resolveExplicitCandidateSeason(anime);
+        if ((explicitSeason === null || explicitSeason === querySeason)
           && filtered.some(ep => extractEpisodeNumberFromTitle(ep.episodeTitle) === queryEpisode)) {
           isEpisodeSatisfied = true;
           break;
